@@ -44,14 +44,26 @@ speculative abstractions for unbuilt features.
   gate direction. You start on the **centre special tile** (opens the cube
   view — reserved for special tiles, not built out yet). The home interior is
   otherwise a NORMAL tile — no special-casing beyond its props.
-- **Edge tiles** = the 6 neighbouring-grid silhouettes drawn around a tile's
-  interior. They obey the UPPER (parent) grid: their screen directions snap to
-  the parent grid's six directions. Exiting through one is a normal
-  parent-scale move onto the mapped parent neighbour (super index i → parent
-  DIR is a fixed bijection per orientation parity).
-- **Sliding**: from a border edge you can slide laterally to the neighbouring
-  sibling grid (exit up + re-enter, no zoom out). Go-up to the parent view is
-  hidden until the parent view is earned.
+- **The perimeter row** (replaced the edge-tile silhouettes, 2026-07-02): the
+  view is the interior plus ring RINGS+1. In the true super lattice those
+  perimeter hexes ARE the neighbouring siblings' border tiles — each is owned
+  by exactly one sibling, at distance exactly RINGS from its centre — so the
+  whole field tessellates with no seam and no special state. Perimeter hexes
+  in sealed (walled) directions, or whose sibling falls off the parent grid,
+  simply don't exist.
+- **Crossing**: scout a perimeter hex like any frontier tile (it's revealed in
+  the sibling that owns it), then step onto it — one ordinary move whose last
+  step lands you on that exact tile on the other side, and the boards slide.
+  No intermediate state. At the parent scale the crossing IS a step: the
+  sibling's parent tile becomes discovered and the parent trail extends (or
+  retraces), but the cost charged is the plain local step (crossing is charged
+  even from the safe space — the step leaves it). The old parent-discovery
+  gate (discoverEdge) is gone. The super-index → parent-DIR bijection per
+  orientation parity remains the constant that maps lobes to parent tiles.
+  Go-up to the parent view stays hidden until earned.
+- **Tile types**: every hex can carry a type (sparse, per tile node); a type's
+  properties are cost multipliers on the level base. All types cost the same
+  today — this is the standing hook for terrain/specials with real costs.
 
 ## Energy / movement model (reworked 2026-07-01 — one-way costs)
 

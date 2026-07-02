@@ -13,6 +13,7 @@ import {
   superIndexOf,
   SUPER,
   RINGS,
+  PERIM,
   ENERGY_START
 } from "../lib/sim.js"
 import { DIRS } from "../lib/world.js"
@@ -71,36 +72,24 @@ test("superIndexOf is safe off the lattice and covers all six lobes", () => {
 })
 
 // ── fuzzing helpers ──────────────────────────────────
-// Enumerate currently-valid actions the UI could produce.
+// Enumerate currently-valid actions the UI could produce. The field is the
+// interior plus the perimeter row; a perimeter hex is scouted/moved-onto like
+// any tile (moving onto one crosses to the sibling).
 function candidates(sim) {
   const out = []
   const v = sim.view()
-  if (v.parked >= 0) {
-    const scoutable = v.tile.safe || sim.scoutCost() + sim.returnCost() <= sim.energy()
-    for (const t of edgeTilesInto(v.parked)) {
-      if (!sim.isDiscovered(t)) {
-        if (scoutable) out.push({ type: "scout", target: t })
-      } else out.push({ type: "stepIn", to: t })
-    }
-    if (sim.canSlide(v.parked)) out.push({ type: "slide", superIdx: v.parked })
-  } else {
-    for (const [q, r] of Hex.range(RINGS)) {
-      const t = [q, r]
-      if (sim.canMove(t) && !Hex.equals(t, v.player)) out.push({ type: "move", target: t })
-      else if (sim.isFrontier(t) && sim.canScout(t)) out.push({ type: "scout", target: t })
-    }
-    // retrace moves carry their explicit route in the log (the `via` form)
-    for (let i = 0; i < v.trail.length - 1; i++) {
-      const via = sim.retraceRoute(v.trail[i])
-      if (via) out.push({ type: "move", target: v.trail[i], via })
-    }
-    if (sim.canEnter()) out.push({ type: "enter" })
-    if (v.tile.safe && Hex.equals(v.player, [0, 0])) out.push({ type: "rest" })
-    for (const i of sim.playerExits()) {
-      if (sim.canDiscoverEdge(i)) out.push({ type: "discoverEdge", superIdx: i })
-      else if (sim.canExit(i)) out.push({ type: "park", superIdx: i })
-    }
+  for (const h of Hex.range(PERIM)) {
+    if (Hex.length(h) > RINGS && !sim.isPerimeter(h)) continue
+    if (sim.canMove(h) && !Hex.equals(h, v.player)) out.push({ type: "move", target: h })
+    else if (sim.isFrontier(h) && sim.canScout(h)) out.push({ type: "scout", target: h })
   }
+  // retrace moves carry their explicit route in the log (the `via` form)
+  for (let i = 0; i < v.trail.length - 1; i++) {
+    const via = sim.retraceRoute(v.trail[i])
+    if (via) out.push({ type: "move", target: v.trail[i], via })
+  }
+  if (sim.canEnter()) out.push({ type: "enter" })
+  if (v.tile.safe && Hex.equals(v.player, [0, 0])) out.push({ type: "rest" })
   return out
 }
 
@@ -149,6 +138,7 @@ function fuzz(sim, rng, steps, { allowRest = true } = {}) {
     const type = pick(rng, types)
     const a = pick(rng, opts.filter(o => o.type === type))
     seen.add(a.type)
+    if (a.type === "move" && Hex.length(a.target) > RINGS) seen.add("cross")
     const sizeBefore = sim.view().tile.discovered.size
     const r = sim.dispatch(a)
     // restResume legitimately rejects when the way back out isn't affordable
@@ -185,10 +175,82 @@ test("energy, reserve and ratchet invariants hold under random play", () => {
     const sim = createSim()
     for (const t of fuzz(sim, makeRng(seed), 400)) covered.add(t)
   }
-  // The fuzz must actually leave the safe home interior, or the run proves nothing.
-  for (const must of ["move", "scout", "discoverEdge", "park", "slide", "stepIn"]) {
+  // The fuzz must actually cross out of the safe home, or the run proves nothing.
+  for (const must of ["move", "scout", "cross"]) {
     assert.ok(covered.has(must), `fuzz never exercised '${must}'`)
   }
+})
+
+// ── crossing: the whole point of the perimeter row ───
+test("crossing lands on the exact mirrored tile, discovers the parent tile, and crosses straight back", () => {
+  const sim = createSim()
+  const rng = makeRng(777)
+  // wander the safe home until a crossing is available (only the gate lobe is open)
+  let crossTarget = null
+  for (let n = 0; n < 500 && !crossTarget; n++) {
+    const opts = candidates(sim)
+    crossTarget = opts.find(o => o.type === "move" && Hex.length(o.target) > RINGS)?.target || null
+    if (crossTarget) break
+    const scouts = opts.filter(o => o.type === "scout")
+    const moves = opts.filter(o => o.type === "move")
+    const a = scouts.length && rng() < 0.7 ? pick(rng, scouts) : moves.length ? pick(rng, moves) : null
+    if (!a) break
+    sim.dispatch(a)
+  }
+  assert.ok(crossTarget, "never found a crossing out of the home safe space")
+
+  const home = sim.view().tile
+  const i = superIndexOf(crossTarget[0], crossTarget[1])
+  const before = sim.routeTo(crossTarget)
+  const borderTile = before[before.length - 2] // the interior tile we cross from
+  const parentTarget = sim.exitTarget(i)
+  const parent = sim.parentOf()
+  assert.equal(parent.tile.discovered.has(`${parentTarget[0]},${parentTarget[1]}`), false, "parent tile known too early")
+
+  assert.ok(sim.dispatch({ type: "move", target: crossTarget }).ok, "crossing rejected")
+  // landed on the exact tile on the other side: crossTarget − SUPER[i]
+  const local = [crossTarget[0] - SUPER[i][0], crossTarget[1] - SUPER[i][1]]
+  assert.deepEqual(sim.view().player, local, "did not land on the mirrored tile")
+  assert.notEqual(sim.view().tile, home, "view did not switch boards")
+  assert.equal(sim.depth(), 2, "crossing must not change depth")
+  // the parent-scale step happened: tile discovered up top, parent player moved
+  assert.ok(sim.parentOf().tile.discovered.has(`${parentTarget[0]},${parentTarget[1]}`), "parent tile not discovered")
+  assert.deepEqual(sim.parentOf().player, parentTarget, "parent player did not step")
+
+  // the way back: the border tile we came from is now a perimeter hex of THIS
+  // view — in sibling coords my old border tile sits at borderTile − SUPER[i]
+  const back = [borderTile[0] - SUPER[i][0], borderTile[1] - SUPER[i][1]]
+  assert.ok(sim.isPerimeter(back), "return hex is not a perimeter hex")
+  assert.ok(sim.isDiscovered(back), "return hex lost its discovery")
+  assert.ok(sim.dispatch({ type: "move", target: back }).ok, "crossing back rejected")
+  assert.equal(sim.view().tile, home, "did not return to the home board")
+  assert.deepEqual(sim.view().player, borderTile, "did not land back on the origin tile")
+})
+
+test("perimeter scouting respects the reserve outside the safe space", () => {
+  let checked = 0
+  for (const seed of [11, 222, 3333]) {
+    const sim = createSim()
+    const rng = makeRng(seed)
+    for (let n = 0; n < 400; n++) {
+      const opts = candidates(sim)
+      if (!opts.length) break
+      const type = pick(rng, [...new Set(opts.map(o => o.type))])
+      sim.dispatch(pick(rng, opts.filter(o => o.type === type)))
+      const v = sim.view()
+      if (v.tile.safe) continue
+      for (const d of [0, 1, 2, 3, 4, 5]) {
+        const n2 = [v.player[0] + DIRS[d].q, v.player[1] + DIRS[d].r]
+        if (Hex.length(n2) !== RINGS + 1 || !sim.isPerimeter(n2) || sim.isDiscovered(n2)) continue
+        const affordable = sim.scoutCostAt(n2) + sim.returnCost() <= sim.energy()
+        const r = sim.dispatch({ type: "scout", target: n2 })
+        assert.equal(r.ok, affordable, "perimeter scout affordability mismatch")
+        checked++
+        break
+      }
+    }
+  }
+  assert.ok(checked > 0, "fuzz never reached a non-safe perimeter frontier")
 })
 
 test("the discovery ratchet only ever grows across a session", () => {
@@ -253,15 +315,15 @@ test("interrupted replay + fast-forward lands on the live end state", () => {
 // ── validation: the sim rejects what the UI merely hides ────────────
 test("invalid actions are rejected, not crashes", () => {
   const sim = createSim()
-  assert.equal(sim.apply({ type: "park", superIdx: -1 }).ok, false)
-  assert.equal(sim.apply({ type: "slide", superIdx: -1 }).ok, false)
   assert.equal(sim.apply({ type: "exit", superIdx: -1 }).ok, false)
-  assert.equal(sim.apply({ type: "discoverEdge", superIdx: -1 }).ok, false)
   assert.equal(sim.apply({ type: "move", target: [3, -3] }).ok, false) // undiscovered
-  assert.equal(sim.apply({ type: "stepIn", to: [0, 0] }).ok, false) // not parked
+  assert.equal(sim.apply({ type: "move", target: [9, -4] }).ok, false) // beyond the perimeter
+  assert.equal(sim.apply({ type: "scout", target: [0, -6] }).ok, false) // perimeter, not adjacent
+  assert.equal(sim.apply({ type: "park", superIdx: 0 }).ok, false) // retired action
+  assert.equal(sim.apply({ type: "slide", superIdx: 0 }).ok, false) // retired action
   assert.equal(sim.apply({ type: "bogus" }).ok, false)
   assert.equal(sim.canExit(-1), false)
-  assert.equal(sim.canDiscoverEdge(-1), false)
+  assert.equal(sim.isPerimeter([100, 100]), false)
 })
 
 test("dispatch is refused during replay", () => {
@@ -273,35 +335,6 @@ test("dispatch is refused during replay", () => {
   sim.beginReplay()
   assert.equal(sim.dispatch({ type: "scout", target: t }).ok, false)
   sim.endReplay()
-})
-
-test("parked scouting respects the reserve (regression: it used to skip all checks)", () => {
-  const sim = createSim()
-  const rng = makeRng(31337)
-  let checked = 0
-  for (let n = 0; n < 600; n++) {
-    const opts = candidates(sim)
-    if (!opts.length) break
-    const types = [...new Set(opts.map(o => o.type))]
-    const type = pick(rng, types)
-    sim.dispatch(pick(rng, opts.filter(o => o.type === type)))
-    const v = sim.view()
-    if (v.parked >= 0 && !v.tile.safe) {
-      for (const t of edgeTilesInto(v.parked)) {
-        if (sim.isDiscovered(t)) continue
-        const affordable = sim.scoutCost() + sim.returnCost() <= sim.energy()
-        const r = sim.dispatch({ type: "scout", target: t })
-        assert.equal(r.ok, affordable, "parked scout affordability mismatch")
-        if (r.ok) {
-          assert.ok(sim.energy() > -1e-9)
-          assert.ok(sim.returnCost() <= sim.energy() + 1e-9, "parked scout broke the reserve")
-        }
-        checked++
-        break
-      }
-    }
-  }
-  assert.ok(checked > 0, "fuzz never reached a parked non-safe state; adjust the seed")
 })
 
 // ── headlessness ─────────────────────────────────────
