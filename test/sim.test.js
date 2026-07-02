@@ -11,9 +11,12 @@ import {
   EDGE_CENTER,
   edgeTilesInto,
   superIndexOf,
+  isSeamHex,
+  seamLobesOf,
   SUPER,
   RINGS,
-  PERIM,
+  SEAM_RING,
+  VIEW_RING,
   ENERGY_START
 } from "../lib/sim.js"
 import { DIRS } from "../lib/world.js"
@@ -53,7 +56,7 @@ test("super→parent-DIR matches the verified mapping (flat child, RINGS=4)", ()
   })
 })
 
-test("every parked edge-centre tile borders its edge", () => {
+test("every edge-centre tile borders its edge", () => {
   for (const parity of [0, 1]) {
     for (let i = 0; i < 6; i++) {
       const c = EDGE_CENTER[parity][i]
@@ -66,20 +69,42 @@ test("every parked edge-centre tile borders its edge", () => {
   }
 })
 
-test("superIndexOf is safe off the lattice and covers all six lobes", () => {
+test("superIndexOf is safe off the lattice and covers all six boards", () => {
   assert.equal(superIndexOf(100, 100), -1) // far away → -1, never a crash
   SUPER.forEach(([q, r], i) => assert.equal(superIndexOf(q, r), i))
 })
 
+test("the seam is exactly one tile thick and partitions cleanly", () => {
+  // my seam ring: every ring-(RINGS+1) hex is seam (side or junction), owned by no board
+  let side = 0
+  let junction = 0
+  for (const h of Hex.ring([0, 0], SEAM_RING)) {
+    assert.ok(isSeamHex(h), `ring-${SEAM_RING} hex ${h} is not seam`)
+    assert.equal(superIndexOf(h[0], h[1]), -1, `seam hex ${h} owned by a board`)
+    const lobes = seamLobesOf(h)
+    if (lobes.length === 1) side++
+    else if (lobes.length === 2) junction++
+    else assert.fail(`seam hex ${h} has ${lobes.length} lobes`)
+  }
+  assert.equal(side, 24) // 4 side tiles per shared edge
+  assert.equal(junction, 6) // 1 junction tile per parent vertex
+  // interiors never touch: no interior hex is adjacent to a neighbour's interior
+  for (const h of Hex.ring([0, 0], RINGS)) {
+    for (const n of Hex.neighbors(h)) {
+      assert.ok(superIndexOf(n[0], n[1]) === -1 || Hex.length(n) <= RINGS, `boards touch at ${h}→${n}`)
+    }
+  }
+})
+
 // ── fuzzing helpers ──────────────────────────────────
 // Enumerate currently-valid actions the UI could produce. The field is the
-// interior plus the perimeter row; a perimeter hex is scouted/moved-onto like
-// any tile (moving onto one crosses to the sibling).
+// interior, the seam, and the neighbours' facing rows; every hex is scouted /
+// moved-onto alike (moving onto a neighbour's tile crosses).
 function candidates(sim) {
   const out = []
   const v = sim.view()
-  for (const h of Hex.range(PERIM)) {
-    if (Hex.length(h) > RINGS && !sim.isPerimeter(h)) continue
+  for (const h of Hex.range(VIEW_RING)) {
+    if (!sim.kindOf(h)) continue
     if (sim.canMove(h) && !Hex.equals(h, v.player)) out.push({ type: "move", target: h })
     else if (sim.isFrontier(h) && sim.canScout(h)) out.push({ type: "scout", target: h })
   }
@@ -138,7 +163,7 @@ function fuzz(sim, rng, steps, { allowRest = true } = {}) {
     const type = pick(rng, types)
     const a = pick(rng, opts.filter(o => o.type === type))
     seen.add(a.type)
-    if (a.type === "move" && Hex.length(a.target) > RINGS) seen.add("cross")
+    if (a.type === "move" && superIndexOf(a.target[0], a.target[1]) >= 0) seen.add("cross")
     const sizeBefore = sim.view().tile.discovered.size
     const r = sim.dispatch(a)
     // restResume legitimately rejects when the way back out isn't affordable
@@ -181,15 +206,15 @@ test("energy, reserve and ratchet invariants hold under random play", () => {
   }
 })
 
-// ── crossing: the whole point of the perimeter row ───
-test("crossing lands on the exact mirrored tile, discovers the parent tile, and crosses straight back", () => {
+// ── crossing: seam in between, exact landing on the other side ───
+test("crossing steps over the seam onto the exact tile, discovers the parent tile, and crosses straight back", () => {
   const sim = createSim()
   const rng = makeRng(777)
   // wander the safe home until a crossing is available (only the gate lobe is open)
   let crossTarget = null
-  for (let n = 0; n < 500 && !crossTarget; n++) {
+  for (let n = 0; n < 800 && !crossTarget; n++) {
     const opts = candidates(sim)
-    crossTarget = opts.find(o => o.type === "move" && Hex.length(o.target) > RINGS)?.target || null
+    crossTarget = opts.find(o => o.type === "move" && superIndexOf(o.target[0], o.target[1]) >= 0)?.target || null
     if (crossTarget) break
     const scouts = opts.filter(o => o.type === "scout")
     const moves = opts.filter(o => o.type === "move")
@@ -201,11 +226,15 @@ test("crossing lands on the exact mirrored tile, discovers the parent tile, and 
 
   const home = sim.view().tile
   const i = superIndexOf(crossTarget[0], crossTarget[1])
-  const before = sim.routeTo(crossTarget)
-  const borderTile = before[before.length - 2] // the interior tile we cross from
+  const route = sim.routeTo(crossTarget)
+  const seamHex = route[route.length - 2] // the crossing steps off the seam
+  assert.equal(sim.kindOf(seamHex), "seam", "the hop before a crossing must be seam ground")
   const parentTarget = sim.exitTarget(i)
-  const parent = sim.parentOf()
-  assert.equal(parent.tile.discovered.has(`${parentTarget[0]},${parentTarget[1]}`), false, "parent tile known too early")
+  assert.equal(
+    sim.parentOf().tile.discovered.has(`${parentTarget[0]},${parentTarget[1]}`),
+    false,
+    "parent tile known too early"
+  )
 
   assert.ok(sim.dispatch({ type: "move", target: crossTarget }).ok, "crossing rejected")
   // landed on the exact tile on the other side: crossTarget − SUPER[i]
@@ -217,22 +246,38 @@ test("crossing lands on the exact mirrored tile, discovers the parent tile, and 
   assert.ok(sim.parentOf().tile.discovered.has(`${parentTarget[0]},${parentTarget[1]}`), "parent tile not discovered")
   assert.deepEqual(sim.parentOf().player, parentTarget, "parent player did not step")
 
-  // the way back: the border tile we came from is now a perimeter hex of THIS
-  // view — in sibling coords my old border tile sits at borderTile − SUPER[i]
-  const back = [borderTile[0] - SUPER[i][0], borderTile[1] - SUPER[i][1]]
-  assert.ok(sim.isPerimeter(back), "return hex is not a perimeter hex")
-  assert.ok(sim.isDiscovered(back), "return hex lost its discovery")
+  // the SEAM is shared world state: the hex we crossed from is the same tile
+  // seen from this side — still discovered, in this frame at seamHex − SUPER[i]
+  const seamBack = [seamHex[0] - SUPER[i][0], seamHex[1] - SUPER[i][1]]
+  assert.equal(sim.kindOf(seamBack), "seam", "return seam hex is not seam in the new frame")
+  assert.ok(sim.isDiscovered(seamBack), "seam discovery was not shared across the edge")
+
+  // cross straight back: the home board sits at the opposite lobe; any of its
+  // discovered tiles reachable from here is a crossing home
+  const backLobe = (i + 3) % 6 // SUPER[(i+3)%6] === −SUPER[i]
+  let back = null
+  for (const h of Hex.range(VIEW_RING)) {
+    if (sim.kindOf(h) === "nbr" && superIndexOf(h[0], h[1]) === backLobe && sim.canMove(h)) {
+      back = h
+      break
+    }
+  }
+  assert.ok(back, "no crossable tile back to the home board")
   assert.ok(sim.dispatch({ type: "move", target: back }).ok, "crossing back rejected")
   assert.equal(sim.view().tile, home, "did not return to the home board")
-  assert.deepEqual(sim.view().player, borderTile, "did not land back on the origin tile")
+  assert.deepEqual(
+    sim.view().player,
+    [back[0] - SUPER[backLobe][0], back[1] - SUPER[backLobe][1]],
+    "did not land on the exact mirrored tile going back"
+  )
 })
 
-test("perimeter scouting respects the reserve outside the safe space", () => {
+test("seam scouting respects the reserve outside the safe space", () => {
   let checked = 0
-  for (const seed of [11, 222, 3333]) {
+  for (const seed of [11, 222, 3333, 777]) {
     const sim = createSim()
     const rng = makeRng(seed)
-    for (let n = 0; n < 400; n++) {
+    for (let n = 0; n < 900; n++) {
       const opts = candidates(sim)
       if (!opts.length) break
       const type = pick(rng, [...new Set(opts.map(o => o.type))])
@@ -241,16 +286,16 @@ test("perimeter scouting respects the reserve outside the safe space", () => {
       if (v.tile.safe) continue
       for (const d of [0, 1, 2, 3, 4, 5]) {
         const n2 = [v.player[0] + DIRS[d].q, v.player[1] + DIRS[d].r]
-        if (Hex.length(n2) !== RINGS + 1 || !sim.isPerimeter(n2) || sim.isDiscovered(n2)) continue
+        if (sim.kindOf(n2) !== "seam" || !sim.isFrontier(n2)) continue
         const affordable = sim.scoutCostAt(n2) + sim.returnCost() <= sim.energy()
         const r = sim.dispatch({ type: "scout", target: n2 })
-        assert.equal(r.ok, affordable, "perimeter scout affordability mismatch")
+        assert.equal(r.ok, affordable, "seam scout affordability mismatch")
         checked++
         break
       }
     }
   }
-  assert.ok(checked > 0, "fuzz never reached a non-safe perimeter frontier")
+  assert.ok(checked > 0, "fuzz never reached a non-safe seam frontier")
 })
 
 test("the discovery ratchet only ever grows across a session", () => {
@@ -317,13 +362,13 @@ test("invalid actions are rejected, not crashes", () => {
   const sim = createSim()
   assert.equal(sim.apply({ type: "exit", superIdx: -1 }).ok, false)
   assert.equal(sim.apply({ type: "move", target: [3, -3] }).ok, false) // undiscovered
-  assert.equal(sim.apply({ type: "move", target: [9, -4] }).ok, false) // beyond the perimeter
-  assert.equal(sim.apply({ type: "scout", target: [0, -6] }).ok, false) // perimeter, not adjacent
+  assert.equal(sim.apply({ type: "move", target: [20, -10] }).ok, false) // beyond the view
+  assert.equal(sim.apply({ type: "scout", target: [0, -5] }).ok, false) // seam, not adjacent
   assert.equal(sim.apply({ type: "park", superIdx: 0 }).ok, false) // retired action
   assert.equal(sim.apply({ type: "slide", superIdx: 0 }).ok, false) // retired action
   assert.equal(sim.apply({ type: "bogus" }).ok, false)
   assert.equal(sim.canExit(-1), false)
-  assert.equal(sim.isPerimeter([100, 100]), false)
+  assert.equal(sim.kindOf([100, 100]), null)
 })
 
 test("dispatch is refused during replay", () => {
