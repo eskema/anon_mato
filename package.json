@@ -1,0 +1,9 @@
+{
+  "name": "thrive",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Thrive — a hex-grid game napp for nostrapps",
+  "scripts": {
+    "dev": "python3 -m http.server 4321 --bind 127.0.0.1"
+  }
+}

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Thrive</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --surface: #111;
+      --text: #eee;
+    }
+    :root[data-theme="light"] {
+      --surface: #f2f1ee;
+      --text: #1b1b1b;
+    }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: var(--surface);
+      color: var(--text);
+    }
+    canvas { display: block; width: 100vw; height: 100vh; }
+    #theme {
+      position: fixed;
+      right: 14px;
+      bottom: 14px;
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font-size: 18px;
+      line-height: 1;
+      opacity: 0.55;
+      cursor: pointer;
+    }
+    #theme:hover { opacity: 1; }
+  </style>
+</head>
+<body>
+  <canvas id="stage"></canvas>
+  <button id="theme" aria-label="Toggle light/dark"></button>
+  <script type="module" src="./lib/main.js"></script>
+</body>
+</html>
