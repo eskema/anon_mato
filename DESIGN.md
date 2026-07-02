@@ -10,6 +10,18 @@ model above all) have already been reworked more than once and will move again.
 Code should optimise for cheap change: rules and tunables in one place, no
 speculative abstractions for unbuilt features.
 
+## Terminology (short on purpose — these are the words we use)
+
+- **board** — one tile's playable interior grid (radius 4, 61 hexes)
+- **seam** — the shared one-tile row between boards (the parent grid's edges)
+- **post** — a seam tile where three boards meet (a parent vertex)
+- **gate** — the single seam tile that opens a walled board
+- **cross** — stepping off the seam onto another board (the boards slide)
+- **clear** — fully discover a board (what opens its gate)
+- **home** — the walled safe board you start on
+- **fog** — undiscovered ground; **trail** — the day's committed path
+- **angle** — the setup angle (0° up, clockwise); it seeds where the gate falls
+
 ## Pillars
 
 - **Time loop.** Nested scales: year (12 months × 30 days) → day (24 h) → hour
@@ -40,10 +52,11 @@ speculative abstractions for unbuilt features.
 - **We start at depth 1, INSIDE the home tile** (`BASE_DEPTH = 1`). The
   outside/map view (depth 0) exists as a locked parent, "gained" later.
 - **Inside-home is the default view** and a **safe space** (`safe: true`):
-  free movement/discovery (no energy cost, no reserve), walled off except the
-  gate direction. You start on the **centre special tile** (opens the cube
-  view — reserved for special tiles, not built out yet). The home interior is
-  otherwise a NORMAL tile — no special-casing beyond its props.
+  free movement/discovery (no energy cost, no reserve), fully walled with a
+  single (initially closed) gate. You start on the **centre special tile**
+  (opens the cube view — reserved for special tiles, not built out yet). The
+  home interior is otherwise a NORMAL tile — no special-casing beyond its
+  props. Clearing it is the first task: that opens the gate.
 - **The seam** (settled 2026-07-02, superseding both the edge-tile silhouettes
   and the brief flush-perimeter version): sibling boards are pushed apart by
   exactly ONE hex row on a single shared lattice (offsets = rotations of
@@ -66,12 +79,17 @@ speculative abstractions for unbuilt features.
   step. The old parent-discovery gate (discoverEdge) is gone. The super-index
   → parent-DIR bijection per orientation parity remains the constant that maps
   neighbour directions to parent tiles. Go-up stays hidden until earned.
-- **Walls and the seam**: walls sit between a board's interior and its seam.
-  A walled side blocks interior↔seam steps; a junction (doorpost) is passable
-  while at least one of its two edges is open. Entering a board across a seam
-  is blocked by THAT board's walls. The seam itself is outside every wall —
-  and outside the safe umbrella: inside the home, interior moves/scouts are
-  free, but anything targeting seam or beyond charges normally.
+- **Walls and the gate** (refined 2026-07-03): a walled board is sealed along
+  its WHOLE seam ring except its **gate** — the single seam tile the seed
+  angle's ray exits through (side seam or post alike; the parent-scale gate
+  direction derives from it). The gate starts CLOSED and ratchets open when
+  the board is **cleared** (all 61 hexes discovered). Walls block
+  interior↔seam steps on the owning board's side only; entering a board
+  across the seam is blocked by THAT board's walls unless the seam tile is
+  its open gate (gates are stored as global seam keys, identical from both
+  sides). The seam itself is outside every wall — and outside the safe
+  umbrella: inside the home, interior moves/scouts are free, but anything
+  targeting seam or beyond charges normally.
 - **Tile types**: every hex can carry a type (sparse, per tile node); a type's
   properties are cost multipliers on the level base. All types cost the same
   today — this is the standing hook for terrain/specials with real costs.

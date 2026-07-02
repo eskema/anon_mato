@@ -13,10 +13,13 @@ import {
   superIndexOf,
   isSeamHex,
   seamLobesOf,
+  gateTileFor,
   SUPER,
   RINGS,
   SEAM_RING,
   VIEW_RING,
+  GATE_TILE,
+  BOARD_TILES,
   ENERGY_START
 } from "../lib/sim.js"
 import { DIRS } from "../lib/world.js"
@@ -123,12 +126,34 @@ function worldSig(tile, path = "root", out = []) {
   out.push({
     path,
     discovered: [...tile.discovered].sort(),
+    seams: [...tile.seamDiscovered].sort(),
     reached: [...tile.reachedEdges].sort(),
     safe: tile.safe,
-    walls: tile.walls ? [...tile.walls].sort() : null
+    walls: !!tile.walls,
+    gate: tile.gate || null,
+    gateOpen: !!tile.gateOpen
   })
   for (const k of Object.keys(tile.children).sort()) worldSig(tile.children[k], path + "/" + k, out)
   return out
+}
+
+// Discover the whole home board (free inside the safe space) — the gate's
+// opening condition. Random scout-first walk; deterministic per seed.
+function clearHome(sim, rng) {
+  const home = sim.view().tile
+  for (let guard = 0; guard < 4000 && home.discovered.size < BOARD_TILES; guard++) {
+    const opts = candidates(sim)
+    const scouts = opts.filter(o => o.type === "scout")
+    if (scouts.length) {
+      sim.dispatch(pick(rng, scouts))
+      continue
+    }
+    const moves = opts.filter(o => o.type === "move")
+    if (!moves.length) break
+    sim.dispatch(pick(rng, moves))
+  }
+  assert.equal(home.discovered.size, BOARD_TILES, "failed to clear the home board")
+  return home
 }
 
 function stateSig(sim) {
@@ -198,6 +223,7 @@ test("energy, reserve and ratchet invariants hold under random play", () => {
   const covered = new Set()
   for (const seed of [1, 2, 42, 1337, 99991]) {
     const sim = createSim()
+    clearHome(sim, makeRng(seed)) // open the gate so the fuzz can leave home
     for (const t of fuzz(sim, makeRng(seed), 400)) covered.add(t)
   }
   // The fuzz must actually cross out of the safe home, or the run proves nothing.
@@ -206,11 +232,48 @@ test("energy, reserve and ratchet invariants hold under random play", () => {
   }
 })
 
+// ── the gate: the seed angle's seam tile, closed until home is cleared ──
+test("the gate opens on clearing home, and is the only way through the walls", () => {
+  assert.equal(Hex.length(GATE_TILE), SEAM_RING, "gate is not on the seam ring")
+  assert.ok(isSeamHex(GATE_TILE), "gate is not a seam tile")
+  assert.deepEqual(gateTileFor(1), GATE_TILE)
+
+  const sim = createSim()
+  const home = sim.view().tile
+  assert.equal(home.gateOpen, false, "gate open at birth")
+  // sealed: nothing outside the board is reachable
+  for (const o of candidates(sim)) {
+    if (o.target) assert.ok(Hex.length(o.target) <= RINGS, `non-interior target ${o.target} while sealed`)
+  }
+
+  clearHome(sim, makeRng(5))
+  assert.equal(home.gateOpen, true, "gate did not open on clearing the board")
+
+  // stand next to the gate: only THE gate tile is passable on the seam
+  const doorstep = Hex.neighbors(GATE_TILE).find(n => Hex.length(n) <= RINGS)
+  assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok, "cannot reach the doorstep")
+  assert.ok(sim.canScout(GATE_TILE), "open gate not scoutable")
+  for (const n of Hex.neighbors(doorstep)) {
+    if (Hex.length(n) === SEAM_RING && !Hex.equals(n, GATE_TILE)) {
+      assert.equal(sim.canScout(n), false, `sealed seam ${n} is scoutable`)
+    }
+  }
+
+  // and through: scout the gate, step onto it, cross to the neighbour
+  assert.ok(sim.dispatch({ type: "scout", target: GATE_TILE }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: GATE_TILE }).ok)
+  const nbr = Hex.neighbors(GATE_TILE).find(n => superIndexOf(n[0], n[1]) >= 0)
+  assert.ok(sim.dispatch({ type: "scout", target: nbr }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: nbr }).ok)
+  assert.notEqual(sim.view().tile, home, "did not cross through the gate")
+})
+
 // ── crossing: seam in between, exact landing on the other side ───
 test("crossing steps over the seam onto the exact tile, discovers the parent tile, and crosses straight back", () => {
   const sim = createSim()
   const rng = makeRng(777)
-  // wander the safe home until a crossing is available (only the gate lobe is open)
+  clearHome(sim, rng) // the gate only opens on a cleared board
+  // wander until a crossing is available (through the gate)
   let crossTarget = null
   for (let n = 0; n < 800 && !crossTarget; n++) {
     const opts = candidates(sim)
@@ -288,6 +351,7 @@ test("seam scouting respects the reserve outside the safe space", () => {
   for (const seed of [11, 222, 3333, 777]) {
     const sim = createSim()
     const rng = makeRng(seed)
+    clearHome(sim, rng)
     for (let n = 0; n < 900; n++) {
       const opts = candidates(sim)
       if (!opts.length) break
