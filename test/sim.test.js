@@ -252,6 +252,17 @@ test("crossing steps over the seam onto the exact tile, discovers the parent til
   assert.equal(sim.kindOf(seamBack), "seam", "return seam hex is not seam in the new frame")
   assert.ok(sim.isDiscovered(seamBack), "seam discovery was not shared across the edge")
 
+  // the trail carries through the crossing: it ends on the landing tile, comes
+  // in through the crossed seam hex, and every carried hex is still in view
+  const trail = sim.view().trail
+  assert.ok(trail.length >= 2, "trail did not carry through the crossing")
+  assert.deepEqual(trail[trail.length - 1], local, "trail does not end on the landing tile")
+  assert.ok(
+    trail.some(th => Hex.equals(th, seamBack)),
+    "trail does not pass through the crossed seam hex"
+  )
+  for (const th of trail) assert.ok(sim.kindOf(th), `carried trail hex ${th} is outside the view`)
+
   // cross straight back: the home board sits at the opposite lobe; any of its
   // discovered tiles reachable from here is a crossing home
   const backLobe = (i + 3) % 6 // SUPER[(i+3)%6] === −SUPER[i]
