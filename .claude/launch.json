@@ -4,8 +4,14 @@
     {
       "name": "thrive",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "4405", "--bind", "127.0.0.1"],
-      "port": 4405
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4406",
+        "--bind",
+        "127.0.0.1"
+      ],
+      "port": 4406
     }
   ]
 }

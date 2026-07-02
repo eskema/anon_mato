@@ -76,9 +76,11 @@ function candidates(sim) {
   const out = []
   const v = sim.view()
   if (v.parked >= 0) {
+    const scoutable = v.tile.safe || sim.scoutCost() + sim.returnCost() <= sim.energy()
     for (const t of edgeTilesInto(v.parked)) {
-      if (!sim.isDiscovered(t)) out.push({ type: "scout", target: t })
-      else out.push({ type: "stepIn", to: t })
+      if (!sim.isDiscovered(t)) {
+        if (scoutable) out.push({ type: "scout", target: t })
+      } else out.push({ type: "stepIn", to: t })
     }
     if (sim.canSlide(v.parked)) out.push({ type: "slide", superIdx: v.parked })
   } else {
@@ -87,7 +89,13 @@ function candidates(sim) {
       if (sim.canMove(t) && !Hex.equals(t, v.player)) out.push({ type: "move", target: t })
       else if (sim.isFrontier(t) && sim.canScout(t)) out.push({ type: "scout", target: t })
     }
+    // retrace moves carry their explicit route in the log (the `via` form)
+    for (let i = 0; i < v.trail.length - 1; i++) {
+      const via = sim.retraceRoute(v.trail[i])
+      if (via) out.push({ type: "move", target: v.trail[i], via })
+    }
     if (sim.canEnter()) out.push({ type: "enter" })
+    if (v.tile.safe && Hex.equals(v.player, [0, 0])) out.push({ type: "rest" })
     for (const i of sim.playerExits()) {
       if (sim.canDiscoverEdge(i)) out.push({ type: "discoverEdge", superIdx: i })
       else if (sim.canExit(i)) out.push({ type: "park", superIdx: i })
