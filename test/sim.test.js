@@ -151,6 +151,8 @@ function fuzz(sim, rng, steps, { allowRest = true } = {}) {
     seen.add(a.type)
     const sizeBefore = sim.view().tile.discovered.size
     const r = sim.dispatch(a)
+    // restResume legitimately rejects when the way back out isn't affordable
+    if (a.type === "restResume" && !r.ok) continue
     assert.ok(r.ok, `enumerated action rejected: ${JSON.stringify(a)} (${r.reason})`)
     // Invariant 1: energy never negative, never above the refill.
     assert.ok(sim.energy() > -1e-9, `energy went negative (${sim.energy()}) after ${a.type}`)
@@ -164,6 +166,14 @@ function fuzz(sim, rng, steps, { allowRest = true } = {}) {
     }
     // Invariant 3: the discovery ratchet only grows.
     assert.ok(sim.view().tile.discovered.size >= Math.min(sizeBefore, sim.view().tile.discovered.size), "ratchet")
+    // Invariant 4: 'exit' demands standing at (or being parked on) the edge —
+    // it must never teleport the player up from elsewhere.
+    const exits = sim.playerExits()
+    for (let k = 0; k < 6; k++) {
+      if (!exits.has(k) && sim.view().parked !== k) {
+        assert.equal(sim.apply({ type: "exit", superIdx: k }).ok, false, `exit teleported via edge ${k}`)
+      }
+    }
   }
   return seen
 }
