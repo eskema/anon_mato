@@ -117,17 +117,20 @@ speculative abstractions for unbuilt features.
   interior moves/scouts are free, but anything targeting seam or beyond
   charges normally.
 - **Tile types**: every hex can carry a type (sparse, per tile node); a type's
-  properties are cost multipliers on the level base. All types cost the same
-  today — this is the standing hook for terrain/specials with real costs.
+  properties are cost multipliers on the level base. Seam tiles default to the
+  `seam` type (move ×0.5 — the cheap roads); board interiors default to
+  `plain` (×1). The standing hook for terrain/specials with real costs.
 
 ## Energy / movement model (reworked 2026-07-01 — one-way costs)
 
 - Costs are **one-way, never refunded**. Two actions:
   - **SCOUT** (`scout`): reveal an adjacent undiscovered tile WITHOUT moving,
-    cost `SCOUT_FRACTION (0.6) × level base` — deliberately MORE than a walk.
+    cost `SCOUT_FRACTION (0.2) × level base` (1 at depth 2) — discovering is
+    cheap; walking there is the commitment.
   - **MOVE** (`move`): step onto *known* ground only, cost
-    `MOVE_FRACTION (0.4) × level base` per step. Backtracking costs too —
-    walking home is time that passes.
+    `MOVE_FRACTION (0.4) × level base` per step (2 at depth 2), halved on
+    seam tiles (1) — the seams are the roads, cheap to travel. Backtracking
+    costs too — walking home is time that passes.
 - Level base cost: `COST_HOME = 180` at the (locked) outside scale, divided by
   `SCALE_RATIO = 6` per level down (home interior 30, inside a tile 5). With
   `ENERGY_START = 60`, energy is literally minutes.
