@@ -13,7 +13,8 @@ import {
   superIndexOf,
   isSeamHex,
   seamLobesOf,
-  gateTileFor,
+  gateEdgeFor,
+  GATE_EDGE,
   SUPER,
   RINGS,
   SEAM_RING,
@@ -129,7 +130,12 @@ function worldSig(tile, path = "root", out = []) {
     seams: [...tile.seamDiscovered].sort(),
     reached: [...tile.reachedEdges].sort(),
     safe: tile.safe,
-    walls: !!tile.walls,
+    walls: Object.entries(tile.walls)
+      .filter(([, b]) => b)
+      .sort(),
+    seamWalls: Object.entries(tile.seamWalls)
+      .filter(([, b]) => b)
+      .sort(),
     gate: tile.gate || null,
     gateOpen: !!tile.gateOpen
   })
@@ -234,9 +240,10 @@ test("energy, reserve and ratchet invariants hold under random play", () => {
 
 // ── the gate: the seed angle's seam tile, closed until home is cleared ──
 test("the gate opens on clearing home, and is the only way through the walls", () => {
-  assert.equal(Hex.length(GATE_TILE), SEAM_RING, "gate is not on the seam ring")
-  assert.ok(isSeamHex(GATE_TILE), "gate is not a seam tile")
-  assert.deepEqual(gateTileFor(1), GATE_TILE)
+  assert.equal(Hex.length(GATE_TILE), SEAM_RING, "gate does not open onto the seam ring")
+  assert.ok(isSeamHex(GATE_TILE), "gate does not open onto a seam tile")
+  assert.equal(Hex.length(Hex.fromKey(GATE_EDGE.k)), RINGS, "doorstep is not a border tile")
+  assert.deepEqual(gateEdgeFor(1), GATE_EDGE)
 
   const sim = createSim()
   const home = sim.view().tile
@@ -249,8 +256,8 @@ test("the gate opens on clearing home, and is the only way through the walls", (
   clearHome(sim, makeRng(5))
   assert.equal(home.gateOpen, true, "gate did not open on clearing the board")
 
-  // stand next to the gate: only THE gate tile is passable on the seam
-  const doorstep = Hex.neighbors(GATE_TILE).find(n => Hex.length(n) <= RINGS)
+  // stand on the doorstep: only the gate EDGE is passable through the walls
+  const doorstep = Hex.fromKey(GATE_EDGE.k)
   assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok, "cannot reach the doorstep")
   assert.ok(sim.canScout(GATE_TILE), "open gate not scoutable")
   for (const n of Hex.neighbors(doorstep)) {

@@ -15,7 +15,7 @@ speculative abstractions for unbuilt features.
 - **board** — one tile's playable interior grid (radius 4, 61 hexes)
 - **seam** — the shared one-tile row between boards (the parent grid's edges)
 - **post** — a seam tile where three boards meet (a parent vertex)
-- **gate** — the single seam tile that opens a walled board
+- **gate** — the single doorstep EDGE that opens a walled board
 - **cross** — stepping off the seam onto another board (the boards slide)
 - **clear** — fully discover a board (what opens its gate)
 - **home** — the walled safe board you start on
@@ -79,17 +79,22 @@ speculative abstractions for unbuilt features.
   step. The old parent-discovery gate (discoverEdge) is gone. The super-index
   → parent-DIR bijection per orientation parity remains the constant that maps
   neighbour directions to parent tiles. Go-up stays hidden until earned.
-- **Walls and the gate** (refined 2026-07-03): a walled board is sealed along
-  its WHOLE seam ring except its **gate** — the single seam tile the seed
-  angle's ray exits through (side seam or post alike; the parent-scale gate
-  direction derives from it). The gate starts CLOSED and ratchets open when
-  the board is **cleared** (all 61 hexes discovered). Walls block
-  interior↔seam steps on the owning board's side only; entering a board
-  across the seam is blocked by THAT board's walls unless the seam tile is
-  its open gate (gates are stored as global seam keys, identical from both
-  sides). The seam itself is outside every wall — and outside the safe
-  umbrella: inside the home, interior moves/scouts are free, but anything
-  targeting seam or beyond charges normally.
+- **Walls** (generalised 2026-07-03): any side of any hex can be walled —
+  walls are per-hex bitmasks (6 bits, one per side) on the owning board's
+  node; seam hexes carry theirs on the parent node keyed by global seam
+  coords, so both boards of an edge see the same. A wall on EITHER side of an
+  edge blocks the step across it. This is the world-building primitive:
+  rooms, corridors, sealed boards are all just wall bits.
+- **The gate** (refined 2026-07-03): the gate belongs to the board, not the
+  seam — it is a single EDGE of the doorstep tile (the last interior tile the
+  seed angle's ray crosses on its way out). A gated board walls every border
+  hex's outward sides, gate edge included; the gate starts CLOSED and
+  ratchets open (that one wall bit clears for good) when the board is
+  **cleared** (all 61 hexes discovered). GATE_TILE — the seam hex just beyond
+  the gate edge — still names where the ray exits the grid. The seam itself
+  is outside every wall — and outside the safe umbrella: inside the home,
+  interior moves/scouts are free, but anything targeting seam or beyond
+  charges normally.
 - **Tile types**: every hex can carry a type (sparse, per tile node); a type's
   properties are cost multipliers on the level base. All types cost the same
   today — this is the standing hook for terrain/specials with real costs.
