@@ -147,16 +147,22 @@ speculative abstractions for unbuilt features.
   prices off), multiplied by `SCALE_RATIO = 6` per level UP (inside a tile 1,
   home interior 6, outside 36). With `ENERGY_START = 60`, energy is literally
   minutes.
-- **Return reserve** (made EXACT 2026-07-03): the reserve is the true cheapest
-  charge of walking from a position back to the day's entry over discovered
-  ground — one Dijkstra sweep from the entry (steps into safe interiors charge
-  0), cached until discovery/walls/entry change. `canMove(t)` = route exists
-  AND path + return-from-t is affordable; `canScout` = frontier AND scout +
-  current return affordable. **Never-strandable** is literal: at
-  `energy == reserve` the walk home is affordable to the minute, so every
-  trail tile behind the player stays a valid retrace all the way down to
-  depletion. (The UI additionally falls back from an unaffordable trail
-  retrace to the plain shortest route, so hover/click never die.)
+- **Resting places + the return reserve** (generalised 2026-07-04): the world
+  keeps a list of RESTING PLACES a day can end and restart from — the home
+  centre is entry one; future built spots (camps, waystations…) join the
+  list. The loop stays closed and compilable: you can only continue while at
+  least one resting place is affordably reachable, so a saved state is always
+  a safe state. The reserve is the true cheapest charge from a position to
+  the NEAREST resting place over discovered ground — one multi-source
+  Dijkstra seeded at every spot (steps into safe interiors charge 0), cached
+  until discovery/walls/the spot list change. `canMove(t)` = route exists AND
+  path + reserve-from-t is affordable; `canScout` = frontier AND scout +
+  current reserve affordable. **Never-strandable** is literal: at
+  `energy == reserve` the trip to safety is affordable to the minute. The way
+  back need not retrace: the router recomputes the best route (leaps and
+  seams included), and the UI falls back from an unaffordable trail retrace
+  to that shortest route, so hover/click never die. Resting ANYWHERE is
+  deliberately not allowed — rest happens at resting places only.
 - Energy refills **only by resting at home** (the safe-space centre) → sleep →
   next day.
 
