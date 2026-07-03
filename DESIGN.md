@@ -125,15 +125,16 @@ speculative abstractions for unbuilt features.
 
 - Costs are **one-way, never refunded**. Two actions:
   - **SCOUT** (`scout`): reveal an adjacent undiscovered tile WITHOUT moving,
-    cost `SCOUT_FRACTION (0.2) × level base` (1 at depth 2) — discovering is
-    cheap; walking there is the commitment.
+    cost `SCOUT_COST (1) × level base` — discovering is cheap; walking there
+    is the commitment.
   - **MOVE** (`move`): step onto *known* ground only, cost
-    `MOVE_FRACTION (0.4) × level base` per step (2 at depth 2), halved on
-    seam tiles (1) — the seams are the roads, cheap to travel. Backtracking
-    costs too — walking home is time that passes.
-- Level base cost: `COST_HOME = 180` at the (locked) outside scale, divided by
-  `SCALE_RATIO = 6` per level down (home interior 30, inside a tile 5). With
-  `ENERGY_START = 60`, energy is literally minutes.
+    `MOVE_COST (2) × level base` per step, halved on seam tiles (1) — the
+    seams are the roads, cheap to travel. Backtracking costs too — walking
+    home is time that passes.
+- Level base cost: `COST_BASE = 1` at the playing depth (the unit everything
+  prices off), multiplied by `SCALE_RATIO = 6` per level UP (inside a tile 1,
+  home interior 6, outside 36). With `ENERGY_START = 60`, energy is literally
+  minutes.
 - **Return reserve** (made EXACT 2026-07-03): the reserve is the true cheapest
   charge of walking from a position back to the day's entry over discovered
   ground — one Dijkstra sweep from the entry (steps into safe interiors charge
