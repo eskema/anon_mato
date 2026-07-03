@@ -369,6 +369,7 @@ test("the seam network is fully roamable and home stays reachable from any side"
     )
     if (!next) break
     if (!sim.isDiscovered(next)) assert.ok(sim.dispatch({ type: "scout", target: next }).ok)
+    if (!sim.canMove(next)) break // the honest reserve ends the outing — not a bug, the budget
     assert.ok(sim.dispatch({ type: "move", target: next }).ok, "seam walk rejected")
     assert.equal(sim.kindOf(sim.view().player), "seam", "walked off the seam")
     walked++
@@ -383,6 +384,47 @@ test("the seam network is fully roamable and home stays reachable from any side"
   assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok, "gate edge refused re-entry")
   assert.equal(sim.view().tile, home)
   assert.equal(sim.kindOf(sim.view().player), "in")
+})
+
+// The depletion regression: with the budget spent down to the reserve, the
+// trail home must stay walkable — every trail tile behind the player is a
+// valid retrace target, and the full retrace lands home with energy ≥ 0.
+// (The old approximate reserve mispriced the way back, so at depletion even
+// the honest retrace was rejected and hover/backtrack died.)
+test("retracing home stays affordable at full depletion", () => {
+  const sim = createSim()
+  const rng = makeRng(5)
+  clearHome(sim, rng)
+  const doorstep = Hex.fromKey(GATE_EDGE.k)
+  assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok)
+  assert.ok(sim.dispatch({ type: "scout", target: GATE_TILE }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: GATE_TILE }).ok)
+
+  // spend the day walking outward along the seam until nothing outward is affordable
+  for (let guard = 0; guard < 60; guard++) {
+    const v = sim.view()
+    const next = Hex.neighbors(v.player).find(
+      n => sim.kindOf(n) === "seam" && !v.trail.some(t => Hex.equals(t, n)) && (sim.isDiscovered(n) || sim.canScout(n))
+    )
+    if (!next) break
+    if (!sim.isDiscovered(next) && !sim.dispatch({ type: "scout", target: next }).ok) break
+    if (!sim.canMove(next)) break
+    assert.ok(sim.dispatch({ type: "move", target: next }).ok)
+  }
+  const v = sim.view()
+  assert.ok(sim.kindOf(v.player) === "seam", "never made it out onto the seam")
+  assert.ok(sim.energy() < ENERGY_START / 2, "the outing never depleted the budget")
+
+  // THE regression: every tile of the trail behind us still accepts a retrace
+  for (let i = 0; i < v.trail.length - 1; i++) {
+    assert.ok(sim.retraceRoute(v.trail[i]), `trail tile ${i} refused the retrace at depletion`)
+  }
+
+  // and the full walk home actually lands, energy intact
+  const via = sim.retraceRoute(v.trail[0])
+  assert.ok(sim.dispatch({ type: "move", target: v.trail[0], via }).ok, "the walk home was rejected")
+  assert.ok(sim.energy() >= 0, "walking home overdrew the budget")
+  assert.ok(Hex.equals(sim.view().player, sim.view().entry), "did not land back on the entry")
 })
 
 test("seam scouting respects the reserve outside the safe space", () => {

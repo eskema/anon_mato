@@ -131,12 +131,16 @@ speculative abstractions for unbuilt features.
 - Level base cost: `COST_HOME = 180` at the (locked) outside scale, divided by
   `SCALE_RATIO = 6` per level down (home interior 30, inside a tile 5). With
   `ENERGY_START = 60`, energy is literally minutes.
-- **Return reserve**: the shortest known way home (BFS through discovered
-  tiles to the nearest reached exit, plus parent trails and climb-out costs)
-  is always reserved: `canMove(t)` = route exists AND path + return-from-t is
-  affordable; `canScout` = frontier AND scout + current return affordable.
-  **Never-strandable** is an invariant: the reserve always covers the trip
-  home.
+- **Return reserve** (made EXACT 2026-07-03): the reserve is the true cheapest
+  charge of walking from a position back to the day's entry over discovered
+  ground — one Dijkstra sweep from the entry (steps into safe interiors charge
+  0), cached until discovery/walls/entry change. `canMove(t)` = route exists
+  AND path + return-from-t is affordable; `canScout` = frontier AND scout +
+  current return affordable. **Never-strandable** is literal: at
+  `energy == reserve` the walk home is affordable to the minute, so every
+  trail tile behind the player stays a valid retrace all the way down to
+  depletion. (The UI additionally falls back from an unaffordable trail
+  retrace to the plain shortest route, so hover/click never die.)
 - Energy refills **only by resting at home** (the safe-space centre) → sleep →
   next day.
 
