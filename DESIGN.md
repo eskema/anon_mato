@@ -92,7 +92,10 @@ speculative abstractions for unbuilt features.
   the boards pan around them (the classic inversion), following the walking
   ghost step by step. Stepping into a board returns to the board-centred view.
   Underneath, the frame still slides between boards as bookkeeping; it is
-  invisible to the player.
+  invisible to the player. The seam view renders GLOBALLY: every discovered
+  tile in the viewport draws (resolved through global coords via `probe`,
+  unbounded by the frame's rings), culled at ~4 board-pitches around the
+  player or ~2 screenfuls, whichever is smaller.
 - **Walls** (generalised 2026-07-03): any side of any hex can be walled —
   walls are per-hex bitmasks (6 bits, one per side) on the owning board's
   node; seam hexes carry theirs on the parent node keyed by global seam

@@ -212,6 +212,17 @@ function fuzz(sim, rng, steps, { allowRest = true } = {}) {
     }
     // Invariant 3: the discovery ratchet only grows.
     assert.ok(sim.view().tile.discovered.size >= Math.min(sizeBefore, sim.view().tile.discovered.size), "ratchet")
+    // Invariant 4: the trail is a connected walk (loops may revisit tiles,
+    // but consecutive entries are always adjacent — no gaps, ever)
+    const tr = sim.view().trail
+    for (let i2 = 1; i2 < tr.length; i2++) {
+      assert.equal(Hex.distance(tr[i2 - 1], tr[i2]), 1, `trail gap after ${a.type}`)
+    }
+    // and an immediate there-and-back must have popped, not appended
+    if (tr.length >= 3) {
+      const [a3, b3, c3] = [tr[tr.length - 3], tr[tr.length - 2], tr[tr.length - 1]]
+      assert.ok(!(Hex.equals(a3, c3) && Hex.distance(a3, b3) === 1), `unpopped backtrack after ${a.type}`)
+    }
     // Invariant 4: 'exit' demands standing at (or being parked on) the edge —
     // it must never teleport the player up from elsewhere.
     const exits = sim.playerExits()
@@ -404,6 +415,17 @@ test("walking the seam past a ring slides the frame; home stays reachable from a
   // the slide prefers charted boards — home is discovered at the parent
   // scale, so circling it re-frames onto home and its whole ring is in view
   assert.equal(sim.view().tile, home, "slide did not re-frame onto the charted board")
+
+  // retracing back across the slide pops the trail instead of duplicating it
+  const tr = sim.view().trail
+  assert.equal(new Set(tr.map(t => `${t[0]},${t[1]}`)).size, tr.length, "trail duplicated after slide")
+  assert.ok(tr.length >= 2, "trail too short to retrace")
+  const backTile = tr[tr.length - 2]
+  const via = sim.retraceRoute(backTile)
+  assert.ok(via, "cannot retrace across the slide")
+  assert.ok(sim.dispatch({ type: "move", target: backTile, via }).ok)
+  const tr2 = sim.view().trail
+  assert.equal(new Set(tr2.map(t => `${t[0]},${t[1]}`)).size, tr2.length, "trail duplicated after retrace")
   // …which means the gate seam tile is addressable again: walk back in
   assert.ok(sim.canMove(GATE_TILE), "gate seam unreachable after re-framing")
   assert.ok(sim.dispatch({ type: "move", target: GATE_TILE }).ok)
@@ -521,6 +543,31 @@ test("dispatch is refused during replay", () => {
   sim.beginReplay()
   assert.equal(sim.dispatch({ type: "scout", target: t }).ok, false)
   sim.endReplay()
+})
+
+test("probe classifies and reads discovery beyond the frame's rings", () => {
+  const sim = createSim()
+  clearHome(sim, makeRng(9))
+  const doorstep = Hex.fromKey(GATE_EDGE.k)
+  assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok)
+  assert.ok(sim.dispatch({ type: "scout", target: GATE_TILE }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: GATE_TILE }).ok)
+  const nbr = Hex.neighbors(GATE_TILE).find(n => superIndexOf(n[0], n[1]) >= 0)
+  const i = superIndexOf(nbr[0], nbr[1])
+  assert.ok(sim.dispatch({ type: "scout", target: nbr }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: nbr }).ok)
+  // home's centre in this frame sits beyond the frame's rings — kindOf gives
+  // up, probe resolves it globally and still sees the discovery
+  const homeCentre = [-SUPER[i][0], -SUPER[i][1]]
+  assert.equal(sim.kindOf(homeCentre), null)
+  const p = sim.probe(homeCentre)
+  assert.ok(p && p.kind === "in" && p.discovered, "probe misses the discovered home centre")
+  // the gate seam tile reads as discovered seam from here too
+  const seamBack = [GATE_TILE[0] - SUPER[i][0], GATE_TILE[1] - SUPER[i][1]]
+  const ps = sim.probe(seamBack)
+  assert.ok(ps && ps.kind === "seam" && ps.discovered, "probe misses the crossed seam tile")
+  // far empty space is nothing
+  assert.equal(sim.probe([60, 60]), null)
 })
 
 test("clearBoard reveals the whole board, opens the gate, and replays cleanly", () => {
