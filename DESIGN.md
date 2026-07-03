@@ -87,6 +87,12 @@ speculative abstractions for unbuilt features.
   parent trail extends/retraces, the step costs its plain charge. This makes
   the whole seam network roamable and any walled board's ring circumnavigable
   from outside back to its gate.
+- **The seam view** (2026-07-03): the seam belongs to no board, and the camera
+  says so — while the player stands on seam ground the screen centres THEM and
+  the boards pan around them (the classic inversion), following the walking
+  ghost step by step. Stepping into a board returns to the board-centred view.
+  Underneath, the frame still slides between boards as bookkeeping; it is
+  invisible to the player.
 - **Walls** (generalised 2026-07-03): any side of any hex can be walled —
   walls are per-hex bitmasks (6 bits, one per side) on the owning board's
   node; seam hexes carry theirs on the parent node keyed by global seam
