@@ -523,6 +523,20 @@ test("dispatch is refused during replay", () => {
   sim.endReplay()
 })
 
+test("clearBoard reveals the whole board, opens the gate, and replays cleanly", () => {
+  const sim = createSim()
+  assert.ok(sim.dispatch({ type: "clearBoard" }).ok)
+  const home = sim.view().tile
+  assert.equal(home.discovered.size, BOARD_TILES)
+  assert.equal(home.gateOpen, true)
+  const before = stateSig(sim)
+  const log = sim.log().slice()
+  sim.beginReplay()
+  for (const a of log) assert.ok(sim.apply(a).ok)
+  sim.endReplay()
+  assert.equal(stateSig(sim), before, "clearBoard day diverged on replay")
+})
+
 // ── headlessness ─────────────────────────────────────
 test("the sim runs with no DOM (this whole file is the proof)", () => {
   assert.equal(typeof globalThis.document, "undefined")
