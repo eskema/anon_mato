@@ -353,6 +353,65 @@ test("crossing steps over the seam onto the exact tile, discovers the parent til
   )
 })
 
+// The reported stranding: cross out, wander past the gate's segment, and the
+// walled home turns into scenery. The fix — the frame follows the seam — must
+// make home's ring circumnavigable from outside, all the way back in.
+test("walking the seam past a ring slides the frame; home stays reachable from any side", () => {
+  const sim = createSim()
+  const home = clearHome(sim, makeRng(9))
+  const doorstep = Hex.fromKey(GATE_EDGE.k)
+
+  // out through the gate onto the neighbour board
+  assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok)
+  assert.ok(sim.dispatch({ type: "scout", target: GATE_TILE }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: GATE_TILE }).ok)
+  const nbr = Hex.neighbors(GATE_TILE).find(n => superIndexOf(n[0], n[1]) >= 0)
+  assert.ok(sim.dispatch({ type: "scout", target: nbr }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: nbr }).ok)
+  const away = sim.view().tile
+  assert.notEqual(away, home)
+
+  // walk this board's ring to a post, then step past it onto a foreign
+  // segment — the frame must slide (we never enter a board)
+  const walkSeam = () => {
+    for (let guard = 0; guard < 30; guard++) {
+      const v = sim.view()
+      // prefer an undiscovered-or-known seam step that leaves the current ring
+      const stepTo = Hex.neighbors(v.player).find(
+        n => sim.kindOf(n) === "seam" && Hex.length(n) > SEAM_RING && (sim.canMove(n) || sim.canScout(n))
+      )
+      if (stepTo) {
+        if (!sim.isDiscovered(stepTo)) assert.ok(sim.dispatch({ type: "scout", target: stepTo }).ok)
+        assert.ok(sim.dispatch({ type: "move", target: stepTo }).ok, "slide move rejected")
+        return true
+      }
+      // otherwise keep walking the ring
+      const onRing = Hex.neighbors(v.player).filter(
+        n => sim.kindOf(n) === "seam" && Hex.length(n) === SEAM_RING && !v.trail.some(t2 => Hex.equals(t2, n))
+      )
+      const next = onRing.find(n => sim.isDiscovered(n) ? sim.canMove(n) : sim.canScout(n))
+      if (!next) return false
+      if (!sim.isDiscovered(next)) assert.ok(sim.dispatch({ type: "scout", target: next }).ok)
+      assert.ok(sim.dispatch({ type: "move", target: next }).ok)
+    }
+    return false
+  }
+  assert.ok(walkSeam(), "never managed to walk past the ring")
+  assert.notEqual(sim.view().tile, away, "the frame did not slide")
+  assert.equal(sim.kindOf(sim.view().player), "seam", "slide moved the player off the seam")
+  assert.equal(Hex.length(sim.view().player), SEAM_RING, "player not on the new frame's ring")
+
+  // the slide prefers charted boards — home is discovered at the parent
+  // scale, so circling it re-frames onto home and its whole ring is in view
+  assert.equal(sim.view().tile, home, "slide did not re-frame onto the charted board")
+  // …which means the gate seam tile is addressable again: walk back in
+  assert.ok(sim.canMove(GATE_TILE), "gate seam unreachable after re-framing")
+  assert.ok(sim.dispatch({ type: "move", target: GATE_TILE }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok, "gate edge refused re-entry")
+  assert.equal(sim.view().tile, home)
+  assert.equal(sim.kindOf(sim.view().player), "in", "did not land inside home")
+})
+
 test("seam scouting respects the reserve outside the safe space", () => {
   let checked = 0
   for (const seed of [11, 222, 3333, 777]) {

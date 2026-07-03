@@ -79,6 +79,14 @@ speculative abstractions for unbuilt features.
   step. The old parent-discovery gate (discoverEdge) is gone. The super-index
   → parent-DIR bijection per orientation parity remains the constant that maps
   neighbour directions to parent tiles. Go-up stays hidden until earned.
+- **The frame follows the seam** (2026-07-03, fixes stranding behind walled
+  boards): a move ending on a seam tile beyond the current board's ring slides
+  the view to a board that owns that segment (preferring one already
+  discovered at the parent scale), the player staying on the very same seam
+  tile. No discovery, no entering — the camera's board changes hands, the
+  parent trail extends/retraces, the step costs its plain charge. This makes
+  the whole seam network roamable and any walled board's ring circumnavigable
+  from outside back to its gate.
 - **Walls** (generalised 2026-07-03): any side of any hex can be walled —
   walls are per-hex bitmasks (6 bits, one per side) on the owning board's
   node; seam hexes carry theirs on the parent node keyed by global seam
