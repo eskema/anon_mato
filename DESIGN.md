@@ -21,6 +21,8 @@ speculative abstractions for unbuilt features.
 - **home** — the walled safe board you start on
 - **fog** — undiscovered ground; **trail** — the day's committed path
 - **angle** — the setup angle (0° up, clockwise); it seeds where the gate falls
+- **leap** — the power move: jump 2 tiles straight through an edge for one
+  step's price
 
 ## Pillars
 
@@ -131,6 +133,16 @@ speculative abstractions for unbuilt features.
     `MOVE_COST (2) × level base` per step, halved on seam tiles (1) — the
     seams are the roads, cheap to travel. Backtracking costs too — walking
     home is time that passes.
+  - **LEAP** (part of `move`, `LEAP` flag — dev-on for playtesting, later an
+    unlockable ability): jump to the tile 2 rows out STRAIGHT through the
+    shared edge, for the price of ONE step onto the landing (2 plain, 1 seam).
+    Legal when the jumped-over middle is discovered and neither crossed edge
+    is walled; the middle is never stood on, charged, or trailed. Leaps are
+    ordinary edges of the move graph — routing, the reserve and retraces all
+    use them, and they chain, so known straight runs traverse at half price.
+    Consequence: the reserve prices the LEAP route home, so a full walking
+    retrace can honestly exceed it near depletion (the UI falls back to the
+    shortest route).
 - Level base cost: `COST_BASE = 1` at the playing depth (the unit everything
   prices off), multiplied by `SCALE_RATIO = 6` per level UP (inside a tile 1,
   home interior 6, outside 36). With `ENERGY_START = 60`, energy is literally
