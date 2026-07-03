@@ -219,12 +219,16 @@ function fuzz(sim, rng, steps, { allowRest = true } = {}) {
     // Invariant 3: the discovery ratchet only grows.
     assert.ok(sim.view().tile.discovered.size >= Math.min(sizeBefore, sim.view().tile.discovered.size), "ratchet")
     // Invariant 4: the trail is a connected walk of legal move segments —
-    // adjacent steps or straight 2-out leaps; no gaps, ever
-    const straightLeap = (p, q2) => DIRS.some(d => p[0] + 2 * d.q === q2[0] && p[1] + 2 * d.r === q2[1])
+    // adjacent steps or diagonal leaps; no gaps, ever
+    const diagLeap = (p, q2) =>
+      DIRS.some((d, i3) => {
+        const e = DIRS[(i3 + 1) % 6]
+        return p[0] + d.q + e.q === q2[0] && p[1] + d.r + e.r === q2[1]
+      })
     const tr = sim.view().trail
     for (let i2 = 1; i2 < tr.length; i2++) {
       const dd = Hex.distance(tr[i2 - 1], tr[i2])
-      assert.ok(dd === 1 || (dd === 2 && straightLeap(tr[i2 - 1], tr[i2])), `trail gap after ${a.type}`)
+      assert.ok(dd === 1 || (dd === 2 && diagLeap(tr[i2 - 1], tr[i2])), `trail gap after ${a.type}`)
     }
     // and an immediate there-and-back must have popped, not appended
     if (tr.length >= 3) {
@@ -388,22 +392,23 @@ test("the seam network is fully roamable and home stays reachable from any side"
   assert.equal(sim.kindOf(sim.view().player), "in")
 })
 
-// The leap: from any tile you can jump 2 rows straight through an edge for
-// ONE step's price, over known unwalled ground — and chain leaps onward.
-test("the leap covers two rows for one step's price and retraces elastically", () => {
+// The leap: the DIAGONAL — the tile beyond the edge two adjacent neighbours
+// share — for ONE step's price, over known unwalled ground. Straight through
+// a tile's CENTRE is not a leap; the crack between tiles is the road.
+test("the leap jumps the diagonal for one step's price and retraces elastically", () => {
   const sim = createSim()
   const rng = makeRng(7)
   clearHome(sim, rng)
   assert.ok(sim.dispatch({ type: "move", target: [0, 0] }).ok) // recentre; trail resets at the entry
 
-  // in the cleared home: the router takes the straight leap, priced as one step
-  const land = [2 * DIRS[0].q, 2 * DIRS[0].r]
+  // in the cleared home: the router takes the diagonal leap, priced as one step
+  const land = [DIRS[0].q + DIRS[1].q, DIRS[0].r + DIRS[1].r]
   assert.ok(sim.canMove(land), "leap landing not movable")
   const route = sim.routeTo(land)
   assert.equal(route.length, 2, "router did not take the leap")
   assert.equal(sim.pathCost(route), sim.stepCostAt(land), "a leap must price as ONE step onto the landing")
   assert.ok(sim.dispatch({ type: "move", target: land }).ok)
-  assert.equal(sim.view().trail.length, 2, "the trail records the landing only — the middle is jumped over")
+  assert.equal(sim.view().trail.length, 2, "the trail records the landing only — the flankers are jumped over")
 
   // leaping back pops the trail like any elastic retrace
   const back = sim.retraceRoute([0, 0])
@@ -412,7 +417,11 @@ test("the leap covers two rows for one step's price and retraces elastically", (
   assert.ok(sim.dispatch({ type: "move", target: [0, 0], via: back }).ok)
   assert.equal(sim.view().trail.length, 1, "the retraced leap did not pop")
 
-  // out on the seam the leap rides the road rate: 2 seam tiles for 1 minute
+  // collinear through a tile's centre is NOT a leap: 2 straight-out takes 2 steps
+  const across = [2 * DIRS[0].q, 2 * DIRS[0].r]
+  assert.equal(sim.routeTo(across).length, 3, "collinear 2-out must walk through the middle")
+
+  // ...and neither is a seam run (seam tiles line up collinear): no seam leaps
   const doorstep = Hex.fromKey(GATE_EDGE.k)
   assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok)
   assert.ok(sim.dispatch({ type: "scout", target: GATE_TILE }).ok)
@@ -430,10 +439,7 @@ test("the leap covers two rows for one step's price and retraces elastically", (
   assert.ok(sim.dispatch({ type: "move", target: mid }).ok)
   assert.ok(sim.dispatch({ type: "scout", target: far }).ok)
   assert.ok(sim.dispatch({ type: "move", target: at, via: sim.retraceRoute(at) }).ok) // back to the gate tile
-  const before = sim.energy()
-  assert.equal(sim.routeTo(far).length, 2, "router did not leap along the seam")
-  assert.ok(sim.dispatch({ type: "move", target: far }).ok)
-  assert.equal(before - sim.energy(), 1, "a seam leap must cost the seam step: 1")
+  assert.equal(sim.routeTo(far).length, 3, "a collinear seam run must walk, not leap")
 })
 
 // The depletion regression: with the budget spent down to the reserve, the

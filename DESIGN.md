@@ -21,8 +21,8 @@ speculative abstractions for unbuilt features.
 - **home** — the walled safe board you start on
 - **fog** — undiscovered ground; **trail** — the day's committed path
 - **angle** — the setup angle (0° up, clockwise); it seeds where the gate falls
-- **leap** — the power move: jump 2 tiles straight through an edge for one
-  step's price
+- **leap** — the power move: jump the diagonal (the tile beyond the edge two
+  adjacent neighbours share) for one step's price
 
 ## Pillars
 
@@ -134,15 +134,20 @@ speculative abstractions for unbuilt features.
     seams are the roads, cheap to travel. Backtracking costs too — walking
     home is time that passes.
   - **LEAP** (part of `move`, `LEAP` flag — dev-on for playtesting, later an
-    unlockable ability): jump to the tile 2 rows out STRAIGHT through the
-    shared edge, for the price of ONE step onto the landing (2 plain, 1 seam).
-    Legal when the jumped-over middle is discovered and neither crossed edge
-    is walled; the middle is never stood on, charged, or trailed. Leaps are
-    ordinary edges of the move graph — routing, the reserve and retraces all
-    use them, and they chain, so known straight runs traverse at half price.
-    Consequence: the reserve prices the LEAP route home, so a full walking
-    retrace can honestly exceed it near depletion (the UI falls back to the
-    shortest route).
+    unlockable ability): jump the DIAGONAL — the tile directly beyond the
+    edge two adjacent neighbours share — for the price of ONE step onto the
+    landing (2 plain, 1 seam). The leap rides that shared edge like a road:
+    out through the vertex between the flankers, along their edge, in through
+    the far vertex. Legal when both flanking tiles are discovered and no wall
+    touches the corridor (the two edges at each vertex + the ridden edge) —
+    so a gate funnels single-file STEPS, never leaps. The flankers are never
+    stood on, charged, or trailed. Collinear 2-out through a tile's centre is
+    NOT a leap, and seam runs line up collinear — no leaping along the seam
+    (the seam keeps its own half-price steps instead). Leaps are ordinary
+    edges of the move graph — routing, the reserve and retraces all use them,
+    and they chain. Consequence: the reserve prices the LEAP route home, so a
+    full walking retrace can honestly exceed it near depletion (the UI falls
+    back to the shortest route).
 - Level base cost: `COST_BASE = 1` at the playing depth (the unit everything
   prices off), multiplied by `SCALE_RATIO = 6` per level UP (inside a tile 1,
   home interior 6, outside 36). With `ENERGY_START = 60`, energy is literally
