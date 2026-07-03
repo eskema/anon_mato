@@ -392,6 +392,27 @@ test("the seam network is fully roamable and home stays reachable from any side"
   assert.equal(sim.kindOf(sim.view().player), "in")
 })
 
+// ── persistence: the save IS the log ─────────────────
+test("serialize → hydrate rebuilds the same world across days", () => {
+  const sim = createSim()
+  clearHome(sim, makeRng(31))
+  fuzz(sim, makeRng(31), 150) // allowRest on: crosses day boundaries via rest/goHome/restResume
+  const raw = JSON.stringify(sim.serialize()) // through JSON, exactly like localStorage
+  assert.ok(sim.day() > 1, "the fuzz never crossed a day — the test proves nothing")
+
+  const sim2 = createSim()
+  const r = sim2.hydrate(JSON.parse(raw))
+  assert.ok(r.ok, `hydrate rejected: ${r.reason}`)
+  assert.equal(stateSig(sim2), stateSig(sim), "hydrated world diverged from the live one")
+  assert.deepEqual(sim2.serialize(), JSON.parse(raw), "re-serialize drifted")
+
+  // guards: dirty sims and mismatched stamps are refused
+  assert.equal(sim.hydrate(JSON.parse(raw)).ok, false, "hydrate onto a dirty sim must refuse")
+  const bad = JSON.parse(raw)
+  bad.world.rules = -1
+  assert.equal(createSim().hydrate(bad).ok, false, "a rules mismatch must refuse")
+})
+
 // The leap: the DIAGONAL — the tile beyond the edge two adjacent neighbours
 // share — for ONE step's price, over known unwalled ground. Straight through
 // a tile's CENTRE is not a leap; the crack between tiles is the road.

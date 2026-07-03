@@ -194,8 +194,20 @@ speculative abstractions for unbuilt features.
 - Days advance on sleep. Each banked day stores its log AND its day-start
   snapshot, so any day is reconstructible (days can start away from home via
   rest-and-resume).
-- Persistence (Nostr events) is deferred; log schema versioning deliberately
-  NOT handled yet — revisit when persistence lands.
+- **The save IS the log** (landed 2026-07-04): `serialize()` returns plain
+  JSON — `{schema, world: {angle, rings, rules}, days: [{day, actions}],
+  today}` — no world state; everything derives by replay. `hydrate()`
+  re-dispatches every action from day 1 on a FRESH sim and refuses on any
+  mismatch: `SCHEMA` stamps the format, `RULES` stamps replay semantics and
+  bumps on ANY change that alters what an old log replays to (dev-phase rule:
+  mismatched saves reset, stashed not destroyed). Day-enders (rest / goHome /
+  restResume) are logged — pushed before running, they bank as their day's
+  last entry, which is what lets a save replay ACROSS days. The controller
+  mirrors every successful dispatch to localStorage (`anonmato:save`).
+- Nostr rides the same format later: one event per banked day (NIP-78 style,
+  `d = anonmato:<world>:day:<n>` — editing a day republishes one event) plus
+  a replaceable head event; the npub is the player, and deriving each world
+  from the pubkey is a founding goal (collaboration via nostr later).
 
 ## Timed actions
 
