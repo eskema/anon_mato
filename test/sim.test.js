@@ -107,7 +107,8 @@ test("the seam is exactly one tile thick and partitions cleanly", () => {
 function candidates(sim) {
   const out = []
   const v = sim.view()
-  for (const h of Hex.range(VIEW_RING)) {
+  for (const d of Hex.range(VIEW_RING)) {
+    const h = [v.player[0] + d[0], v.player[1] + d[1]]
     if (!sim.kindOf(h)) continue
     if (sim.canMove(h) && !Hex.equals(h, v.player)) out.push({ type: "move", target: h })
     else if (sim.isFrontier(h) && sim.canScout(h)) out.push({ type: "scout", target: h })
@@ -164,6 +165,7 @@ function clearHome(sim, rng) {
 
 function stateSig(sim) {
   const v = sim.view()
+  const p = sim.parentOf()
   return JSON.stringify({
     energy: Math.round(sim.energy() * 1e6),
     day: sim.day(),
@@ -171,8 +173,8 @@ function stateSig(sim) {
     player: v.player,
     entry: v.entry,
     trail: v.trail,
-    parked: v.parked,
-    fromEdge: v.fromEdge,
+    parentPlayer: p.player,
+    parentTrail: p.trail,
     world: worldSig(sim.root())
   })
 }
@@ -194,7 +196,11 @@ function fuzz(sim, rng, steps, { allowRest = true } = {}) {
     const type = pick(rng, types)
     const a = pick(rng, opts.filter(o => o.type === type))
     seen.add(a.type)
-    if (a.type === "move" && superIndexOf(a.target[0], a.target[1]) >= 0) seen.add("cross")
+    if (a.type === "move") {
+      const tb = sim.boardHexOf(a.target)
+      const pb = sim.boardHexOf(sim.view().player)
+      if (tb && (!pb || tb[0] !== pb[0] || tb[1] !== pb[1])) seen.add("cross")
+    }
     const sizeBefore = sim.view().tile.discovered.size
     const r = sim.dispatch(a)
     // restResume legitimately rejects when the way back out isn't affordable
@@ -222,14 +228,6 @@ function fuzz(sim, rng, steps, { allowRest = true } = {}) {
     if (tr.length >= 3) {
       const [a3, b3, c3] = [tr[tr.length - 3], tr[tr.length - 2], tr[tr.length - 1]]
       assert.ok(!(Hex.equals(a3, c3) && Hex.distance(a3, b3) === 1), `unpopped backtrack after ${a.type}`)
-    }
-    // Invariant 4: 'exit' demands standing at (or being parked on) the edge —
-    // it must never teleport the player up from elsewhere.
-    const exits = sim.playerExits()
-    for (let k = 0; k < 6; k++) {
-      if (!exits.has(k) && sim.view().parked !== k) {
-        assert.equal(sim.apply({ type: "exit", superIdx: k }).ok, false, `exit teleported via edge ${k}`)
-      }
     }
   }
   return seen
@@ -286,8 +284,8 @@ test("the gate opens on clearing home, and is the only way through the walls", (
   assert.notEqual(sim.view().tile, home, "did not cross through the gate")
 })
 
-// ── crossing: seam in between, exact landing on the other side ───
-test("crossing steps over the seam onto the exact tile, discovers the parent tile, and crosses straight back", () => {
+// ── crossing: seam in between, one global world ───
+test("crossing steps over the seam onto the exact tile and discovers the parent tile", () => {
   const sim = createSim()
   const rng = makeRng(777)
   clearHome(sim, rng) // the gate only opens on a cleared board
@@ -295,7 +293,12 @@ test("crossing steps over the seam onto the exact tile, discovers the parent til
   let crossTarget = null
   for (let n = 0; n < 800 && !crossTarget; n++) {
     const opts = candidates(sim)
-    crossTarget = opts.find(o => o.type === "move" && superIndexOf(o.target[0], o.target[1]) >= 0)?.target || null
+    crossTarget =
+      opts.find(o => {
+        if (o.type !== "move") return false
+        const tb = sim.boardHexOf(o.target)
+        return tb && (tb[0] !== 0 || tb[1] !== 0)
+      })?.target || null
     if (crossTarget) break
     const scouts = opts.filter(o => o.type === "scout")
     const moves = opts.filter(o => o.type === "move")
@@ -306,132 +309,80 @@ test("crossing steps over the seam onto the exact tile, discovers the parent til
   assert.ok(crossTarget, "never found a crossing out of the home safe space")
 
   const home = sim.view().tile
-  const i = superIndexOf(crossTarget[0], crossTarget[1])
+  const targetBoard = sim.boardHexOf(crossTarget)
   const route = sim.routeTo(crossTarget)
-  const seamHex = route[route.length - 2] // the crossing steps off the seam
+  const seamHex = route[route.length - 2]
   assert.equal(sim.kindOf(seamHex), "seam", "the hop before a crossing must be seam ground")
-  const parentTarget = sim.exitTarget(i)
   assert.equal(
-    sim.parentOf().tile.discovered.has(`${parentTarget[0]},${parentTarget[1]}`),
+    sim.parentOf().tile.discovered.has(`${targetBoard[0]},${targetBoard[1]}`),
     false,
     "parent tile known too early"
   )
 
+  const trailBefore = sim.view().trail.length
   assert.ok(sim.dispatch({ type: "move", target: crossTarget }).ok, "crossing rejected")
-  // landed on the exact tile on the other side: crossTarget − SUPER[i]
-  const local = [crossTarget[0] - SUPER[i][0], crossTarget[1] - SUPER[i][1]]
-  assert.deepEqual(sim.view().player, local, "did not land on the mirrored tile")
-  assert.notEqual(sim.view().tile, home, "view did not switch boards")
+  // one world: the player IS the target — no translation, no re-framing
+  assert.deepEqual(sim.view().player, crossTarget)
+  assert.notEqual(sim.view().tile, home, "board bookkeeping did not follow")
   assert.equal(sim.depth(), 2, "crossing must not change depth")
-  // the parent-scale step happened: tile discovered up top, parent player moved
-  assert.ok(sim.parentOf().tile.discovered.has(`${parentTarget[0]},${parentTarget[1]}`), "parent tile not discovered")
-  assert.deepEqual(sim.parentOf().player, parentTarget, "parent player did not step")
+  assert.ok(sim.parentOf().tile.discovered.has(`${targetBoard[0]},${targetBoard[1]}`), "parent tile not discovered")
+  assert.deepEqual(sim.parentOf().player, targetBoard, "parent player did not step")
+  // the trail is continuous through the crossing (grew by the walked route)
+  assert.ok(sim.view().trail.length > trailBefore, "trail did not continue through the crossing")
+  assert.ok(sim.isDiscovered(seamHex), "seam discovery lost")
 
-  // the SEAM is shared world state: the hex we crossed from is the same tile
-  // seen from this side — still discovered, in this frame at seamHex − SUPER[i]
-  const seamBack = [seamHex[0] - SUPER[i][0], seamHex[1] - SUPER[i][1]]
-  assert.equal(sim.kindOf(seamBack), "seam", "return seam hex is not seam in the new frame")
-  assert.ok(sim.isDiscovered(seamBack), "seam discovery was not shared across the edge")
-
-  // the trail carries through the crossing: it ends on the landing tile, comes
-  // in through the crossed seam hex, and every carried hex is still in view
-  const trail = sim.view().trail
-  assert.ok(trail.length >= 2, "trail did not carry through the crossing")
-  assert.deepEqual(trail[trail.length - 1], local, "trail does not end on the landing tile")
-  assert.ok(
-    trail.some(th => Hex.equals(th, seamBack)),
-    "trail does not pass through the crossed seam hex"
-  )
-  for (const th of trail) assert.ok(sim.kindOf(th), `carried trail hex ${th} is outside the view`)
-
-  // cross straight back: the home board sits at the opposite lobe; any of its
-  // discovered tiles reachable from here is a crossing home
-  const backLobe = (i + 3) % 6 // SUPER[(i+3)%6] === −SUPER[i]
-  let back = null
-  for (const h of Hex.range(VIEW_RING)) {
-    if (sim.kindOf(h) === "nbr" && superIndexOf(h[0], h[1]) === backLobe && sim.canMove(h)) {
-      back = h
-      break
-    }
-  }
-  assert.ok(back, "no crossable tile back to the home board")
-  assert.ok(sim.dispatch({ type: "move", target: back }).ok, "crossing back rejected")
-  assert.equal(sim.view().tile, home, "did not return to the home board")
-  assert.deepEqual(
-    sim.view().player,
-    [back[0] - SUPER[backLobe][0], back[1] - SUPER[backLobe][1]],
-    "did not land on the exact mirrored tile going back"
-  )
+  // and straight back: the same coordinates, the same world
+  const back = route[0]
+  const via = sim.retraceRoute(back)
+  assert.ok(via, "cannot retrace back across the crossing")
+  assert.ok(sim.dispatch({ type: "move", target: back, via }).ok)
+  assert.deepEqual(sim.view().player, back)
+  // walk home to its centre — bookkeeping lands back on the home board
+  assert.ok(sim.dispatch({ type: "move", target: [0, 0] }).ok, "cannot walk back to the home centre")
+  assert.equal(sim.view().tile, home, "board bookkeeping did not follow back")
 })
 
-// The reported stranding: cross out, wander past the gate's segment, and the
-// walled home turns into scenery. The fix — the frame follows the seam — must
-// make home's ring circumnavigable from outside, all the way back in.
-test("walking the seam past a ring slides the frame; home stays reachable from any side", () => {
+// The reported stranding, global edition: leave home, wander the seam network
+// anywhere, and home must stay addressable — same coordinates, no frames.
+test("the seam network is fully roamable and home stays reachable from any side", () => {
   const sim = createSim()
-  const home = clearHome(sim, makeRng(9))
+  const rng = makeRng(9)
+  clearHome(sim, rng)
+  const home = sim.view().tile
   const doorstep = Hex.fromKey(GATE_EDGE.k)
 
-  // out through the gate onto the neighbour board
+  // out through the gate onto the seam
   assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok)
   assert.ok(sim.dispatch({ type: "scout", target: GATE_TILE }).ok)
   assert.ok(sim.dispatch({ type: "move", target: GATE_TILE }).ok)
-  const nbr = Hex.neighbors(GATE_TILE).find(n => superIndexOf(n[0], n[1]) >= 0)
-  assert.ok(sim.dispatch({ type: "scout", target: nbr }).ok)
-  assert.ok(sim.dispatch({ type: "move", target: nbr }).ok)
-  const away = sim.view().tile
-  assert.notEqual(away, home)
+  assert.equal(sim.kindOf(sim.view().player), "seam")
 
-  // walk this board's ring to a post, then step past it onto a foreign
-  // segment — the frame must slide (we never enter a board)
-  const walkSeam = () => {
-    for (let guard = 0; guard < 30; guard++) {
-      const v = sim.view()
-      // prefer an undiscovered-or-known seam step that leaves the current ring
-      const stepTo = Hex.neighbors(v.player).find(
-        n => sim.kindOf(n) === "seam" && Hex.length(n) > SEAM_RING && (sim.canMove(n) || sim.canScout(n))
-      )
-      if (stepTo) {
-        if (!sim.isDiscovered(stepTo)) assert.ok(sim.dispatch({ type: "scout", target: stepTo }).ok)
-        assert.ok(sim.dispatch({ type: "move", target: stepTo }).ok, "slide move rejected")
-        return true
-      }
-      // otherwise keep walking the ring
-      const onRing = Hex.neighbors(v.player).filter(
-        n => sim.kindOf(n) === "seam" && Hex.length(n) === SEAM_RING && !v.trail.some(t2 => Hex.equals(t2, n))
-      )
-      const next = onRing.find(n => sim.isDiscovered(n) ? sim.canMove(n) : sim.canScout(n))
-      if (!next) return false
-      if (!sim.isDiscovered(next)) assert.ok(sim.dispatch({ type: "scout", target: next }).ok)
-      assert.ok(sim.dispatch({ type: "move", target: next }).ok)
-    }
-    return false
+  // walk the seam AROUND home — scout ahead, step, repeat; never enter a board
+  let walked = 0
+  for (let guard = 0; guard < 40 && walked < 8; guard++) {
+    const v = sim.view()
+    const next = Hex.neighbors(v.player).find(
+      n =>
+        sim.kindOf(n) === "seam" &&
+        !v.trail.some(t2 => Hex.equals(t2, n)) &&
+        (sim.isDiscovered(n) || sim.canScout(n))
+    )
+    if (!next) break
+    if (!sim.isDiscovered(next)) assert.ok(sim.dispatch({ type: "scout", target: next }).ok)
+    assert.ok(sim.dispatch({ type: "move", target: next }).ok, "seam walk rejected")
+    assert.equal(sim.kindOf(sim.view().player), "seam", "walked off the seam")
+    walked++
   }
-  assert.ok(walkSeam(), "never managed to walk past the ring")
-  assert.notEqual(sim.view().tile, away, "the frame did not slide")
-  assert.equal(sim.kindOf(sim.view().player), "seam", "slide moved the player off the seam")
-  assert.equal(Hex.length(sim.view().player), SEAM_RING, "player not on the new frame's ring")
+  assert.ok(walked >= 6, `seam walk stalled after ${walked} steps`)
 
-  // the slide prefers charted boards — home is discovered at the parent
-  // scale, so circling it re-frames onto home and its whole ring is in view
-  assert.equal(sim.view().tile, home, "slide did not re-frame onto the charted board")
-
-  // retracing back across the slide pops the trail instead of duplicating it
-  const tr = sim.view().trail
-  assert.equal(new Set(tr.map(t => `${t[0]},${t[1]}`)).size, tr.length, "trail duplicated after slide")
-  assert.ok(tr.length >= 2, "trail too short to retrace")
-  const backTile = tr[tr.length - 2]
-  const via = sim.retraceRoute(backTile)
-  assert.ok(via, "cannot retrace across the slide")
-  assert.ok(sim.dispatch({ type: "move", target: backTile, via }).ok)
-  const tr2 = sim.view().trail
-  assert.equal(new Set(tr2.map(t => `${t[0]},${t[1]}`)).size, tr2.length, "trail duplicated after retrace")
-  // …which means the gate seam tile is addressable again: walk back in
-  assert.ok(sim.canMove(GATE_TILE), "gate seam unreachable after re-framing")
+  // rest where we stand (a day on the road), then walk straight back in —
+  // same coordinates, no frames
+  assert.ok(sim.dispatch({ type: "restResume" }).ok, "cannot rest on the seam")
+  assert.ok(sim.canMove(GATE_TILE), "gate seam unreachable from out on the network")
   assert.ok(sim.dispatch({ type: "move", target: GATE_TILE }).ok)
   assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok, "gate edge refused re-entry")
   assert.equal(sim.view().tile, home)
-  assert.equal(sim.kindOf(sim.view().player), "in", "did not land inside home")
+  assert.equal(sim.kindOf(sim.view().player), "in")
 })
 
 test("seam scouting respects the reserve outside the safe space", () => {
@@ -530,7 +481,6 @@ test("invalid actions are rejected, not crashes", () => {
   assert.equal(sim.apply({ type: "park", superIdx: 0 }).ok, false) // retired action
   assert.equal(sim.apply({ type: "slide", superIdx: 0 }).ok, false) // retired action
   assert.equal(sim.apply({ type: "bogus" }).ok, false)
-  assert.equal(sim.canExit(-1), false)
   assert.equal(sim.kindOf([100, 100]), null)
 })
 
@@ -545,29 +495,27 @@ test("dispatch is refused during replay", () => {
   sim.endReplay()
 })
 
-test("probe classifies and reads discovery beyond the frame's rings", () => {
+test("classification and discovery are global — no frame, no range limit", () => {
   const sim = createSim()
   clearHome(sim, makeRng(9))
   const doorstep = Hex.fromKey(GATE_EDGE.k)
   assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok)
   assert.ok(sim.dispatch({ type: "scout", target: GATE_TILE }).ok)
   assert.ok(sim.dispatch({ type: "move", target: GATE_TILE }).ok)
-  const nbr = Hex.neighbors(GATE_TILE).find(n => superIndexOf(n[0], n[1]) >= 0)
-  const i = superIndexOf(nbr[0], nbr[1])
+  const nbr = Hex.neighbors(GATE_TILE).find(n => {
+    const b = sim.boardHexOf(n)
+    return b && (b[0] !== 0 || b[1] !== 0)
+  })
   assert.ok(sim.dispatch({ type: "scout", target: nbr }).ok)
   assert.ok(sim.dispatch({ type: "move", target: nbr }).ok)
-  // home's centre in this frame sits beyond the frame's rings — kindOf gives
-  // up, probe resolves it globally and still sees the discovery
-  const homeCentre = [-SUPER[i][0], -SUPER[i][1]]
-  assert.equal(sim.kindOf(homeCentre), null)
-  const p = sim.probe(homeCentre)
-  assert.ok(p && p.kind === "in" && p.discovered, "probe misses the discovered home centre")
-  // the gate seam tile reads as discovered seam from here too
-  const seamBack = [GATE_TILE[0] - SUPER[i][0], GATE_TILE[1] - SUPER[i][1]]
-  const ps = sim.probe(seamBack)
-  assert.ok(ps && ps.kind === "seam" && ps.discovered, "probe misses the crossed seam tile")
+  // from the neighbour board, home keeps its one true name — [0,0] is still
+  // the home centre, and reads discovered from anywhere
+  assert.equal(sim.kindOf([0, 0]), "in")
+  assert.ok(sim.isDiscovered([0, 0]), "home centre lost its discovery")
+  assert.ok(sim.isDiscovered(GATE_TILE), "gate seam lost its discovery")
   // far empty space is nothing
-  assert.equal(sim.probe([60, 60]), null)
+  assert.equal(sim.kindOf([60, 60]), null)
+  assert.equal(sim.isDiscovered([60, 60]), false)
 })
 
 test("clearBoard reveals the whole board, opens the gate, and replays cleanly", () => {

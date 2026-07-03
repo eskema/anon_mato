@@ -87,15 +87,19 @@ speculative abstractions for unbuilt features.
   parent trail extends/retraces, the step costs its plain charge. This makes
   the whole seam network roamable and any walled board's ring circumnavigable
   from outside back to its gate.
-- **The seam view** (2026-07-03): the seam belongs to no board, and the camera
-  says so — while the player stands on seam ground the screen centres THEM and
-  the boards pan around them (the classic inversion), following the walking
-  ghost step by step. Stepping into a board returns to the board-centred view.
-  Underneath, the frame still slides between boards as bookkeeping; it is
-  invisible to the player. The seam view renders GLOBALLY: every discovered
-  tile in the viewport draws (resolved through global coords via `probe`,
-  unbounded by the frame's rings), culled at ~4 board-pitches around the
-  player or ~2 screenfuls, whichever is smaller.
+- **SPACE IS GLOBAL** (2026-07-03, the third and final spatial model): each
+  depth level is ONE continuous lattice; the player, the entry and the trail
+  live in global coordinates on it. There are no frames: crossing into another
+  board is an ordinary step (the parent trail extends/retraces and the parent
+  tile becomes discovered as bookkeeping), the trail is never translated or
+  truncated, and retraces work across any number of boards natively. The
+  camera is pure presentation: board-centred while on a board, player-centred
+  on the seam (the classic inversion), panning with the walking ghost.
+  Rendering is one global pass — every discovered tile in the viewport draws,
+  culled at ~4 board-pitches around the camera or ~2 screenfuls, whichever is
+  smaller. The old frame model (edge tiles → parked slides → frame-follows-
+  the-seam) is fully retired; go-up/exit actions are retired with it until
+  the parent view is earned.
 - **Walls** (generalised 2026-07-03): any side of any hex can be walled —
   walls are per-hex bitmasks (6 bits, one per side) on the owning board's
   node; seam hexes carry theirs on the parent node keyed by global seam
