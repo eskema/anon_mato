@@ -258,8 +258,37 @@ nothing).
 - The player cube is a plain hexagon outline + 3 inner radial lines — NOT a
   shaded/3D cube.
 
+## The arc (vision, 2026-07-04 — north star, not scheduled)
+
+- **Your world is the parent grid**: the 61-board depth-1 level (~3721
+  interior tiles + seams) is the player's own derived world. The literal
+  npub inscription lives at THIS scale — 64 pubkey nibbles → 61 parent
+  tiles (centre-out spiral; nibble 0 = the home board) + 3 meta; each
+  nibble sets a board's biome/character, child boards derive from the
+  hash chain (`childSeed = H(parentSeed ‖ path)`).
+- **Progression = the gate rule, self-similar**: clear the home board →
+  its gate opens; clear the world (or an ability-gated threshold of
+  boards) → the world's RIM opens onto the inter-player lattice. Outside:
+  other players' npub-derived worlds, generated/collaborative maps, and —
+  far out — mining worlds. You grind to full freedom.
+- **Builder loop**: buildings/factories/tasks (the "patterns" pillar made
+  concrete) generate energy inside the day cycle. **High score = surplus
+  energy at the end of the year loop** — and because the save is the log
+  and worlds derive from the npub, a published year is a VERIFIABLE
+  score: anyone replays the log on the derived world and confirms it.
+  Trustless leaderboards for free.
+- **Seasons / weather (crude)**: sunlight varies over the 360-day year;
+  the player's season PHASE derives from the setup angle — 360° ↔ 360
+  days, so the one chosen input places both the gate and your birth-day
+  in the year. Resolution of the budget tension: the baseline daily 60
+  stays sacred; seasons modulate the SURPLUS side (generation, growth,
+  factory output), not the cost of being outside — winter is what the
+  builder layer must carry you through.
+
 ## Not built yet / parked
 
 - Cube view content (special tiles), parent-view "earn" mechanic, day
   navigation + log editing UI, abilities/automation, fruit (first resource),
-  Nostr persistence, the angle-picker setup flow (`lib/setup/`, stashed).
+  Nostr persistence, the angle-picker setup flow (`lib/setup/`, stashed),
+  npub→world derivation (researched 2026-07-04 — spiral mapping, weighted
+  type tables, hash-chain depth, seam symmetry, vanity mining as feature).
