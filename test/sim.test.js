@@ -392,6 +392,22 @@ test("the seam network is fully roamable and home stays reachable from any side"
   assert.equal(sim.kindOf(sim.view().player), "in")
 })
 
+// The chosen angle is per-world: it places the gate and rides the save stamp.
+test("a chosen angle places the gate and binds the save to its world", () => {
+  const a = 90
+  const sim = createSim({ angle: a })
+  assert.equal(sim.angle(), a)
+  const edge = gateEdgeFor(a)
+  sim.dispatch({ type: "clearBoard" }) // clearing home opens the gate wherever it fell
+  assert.ok(sim.dispatch({ type: "move", target: Hex.fromKey(edge.k) }).ok, "doorstep unreachable")
+  assert.ok(sim.dispatch({ type: "scout", target: edge.seam }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: edge.seam }).ok, "the gate did not open at the chosen angle")
+  const save = sim.serialize()
+  assert.equal(save.world.angle, a)
+  assert.ok(createSim({ angle: a }).hydrate(JSON.parse(JSON.stringify(save))).ok)
+  assert.equal(createSim().hydrate(save).ok, false, "a default-angle sim must refuse another world's save")
+})
+
 // ── persistence: the save IS the log ─────────────────
 test("serialize → hydrate rebuilds the same world across days", () => {
   const sim = createSim()

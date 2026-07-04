@@ -341,6 +341,10 @@ nothing).
 
 - Cube view content (special tiles), parent-view "earn" mechanic, day
   navigation + log editing UI, abilities/automation, fruit (first resource),
-  Nostr persistence, the angle-picker setup flow (`lib/setup/`, stashed),
-  npub→world derivation (researched 2026-07-04 — spiral mapping, weighted
-  type tables, hash-chain depth, seam symmetry, vanity mining as feature).
+  Nostr persistence, npub→world derivation (researched 2026-07-04 — spiral
+  mapping, weighted type tables, hash-chain depth, seam symmetry, vanity
+  mining as feature).
+- The angle-picker setup flow is LIVE again (2026-07-04): no save → the
+  picker runs first and its angle seeds the world (`createSim({angle})`,
+  per-instance gate); a save carries its angle and boots straight in; the
+  "reset everything" helper wipes the save and returns to the picker.
