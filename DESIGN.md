@@ -277,13 +277,27 @@ nothing).
   and worlds derive from the npub, a published year is a VERIFIABLE
   score: anyone replays the log on the derived world and confirms it.
   Trustless leaderboards for free.
+- **The angle is social, never power** (doctrine 2026-07-04): luck may
+  come ONLY from the pubkey — the dice you can't load (vanity grinding
+  is the bounded exception, and the only place effort buys luck). The
+  angle is a free choice, so it must never confer solo advantage or
+  players converge on the "best" number. What it does is create FACTIONS
+  and narrative, all of it relational: (1) same angle = same faction,
+  and the angle IS a hue (HSL's 0–360 wheel, no mapping needed) — your
+  color on the lattice, trail tint, flag; (2) the circle divides into 4
+  quadrants — the coarse fronts; (3) opposite/complementary angles shape
+  collaboration and trade favorability; triads (±120°), near-kin (±5°),
+  and 180° rival-and-ideal-trading-partner are free extensions.
 - **Seasons / weather (crude)**: sunlight varies over the 360-day year;
-  the player's season PHASE derives from the setup angle — 360° ↔ 360
-  days, so the one chosen input places both the gate and your birth-day
-  in the year. Resolution of the budget tension: the baseline daily 60
-  stays sacred; seasons modulate the SURPLUS side (generation, growth,
-  factory output), not the cost of being outside — winter is what the
-  builder layer must carry you through.
+  every player runs the SAME season curve, phase-rotated by their angle,
+  and starts at the same relative point in their own curve — fair by
+  symmetry, equal totals over the loop, identical solo experience. The
+  phase exists only RELATIVE to other players, which is what powers
+  front (3): your winter is literally an opposite angle's summer, so
+  trade favorability EMERGES from phase-shifted surplus cycles rather
+  than a bonus table. Baseline daily 60 stays sacred; seasons modulate
+  the SURPLUS side (generation, growth, factory output) only — winter is
+  what the builder layer must carry you through.
 
 ## Not built yet / parked
 
