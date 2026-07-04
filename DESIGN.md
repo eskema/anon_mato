@@ -203,9 +203,9 @@ speculative abstractions for unbuilt features.
   mismatched saves reset, stashed not destroyed). Day-enders (rest / goHome /
   restResume) are logged — pushed before running, they bank as their day's
   last entry, which is what lets a save replay ACROSS days. The controller
-  mirrors every successful dispatch to localStorage (`anonmato:save`).
+  mirrors every successful dispatch to localStorage (`anon&mato:save`).
 - Nostr rides the same format later: one event per banked day (NIP-78 style,
-  `d = anonmato:<world>:day:<n>` — editing a day republishes one event) plus
+  `d = anon&mato:<world>:day:<n>` — editing a day republishes one event) plus
   a replaceable head event; the npub is the player, and deriving each world
   from the pubkey is a founding goal (collaboration via nostr later).
 
