@@ -318,6 +318,22 @@ nothing).
   the SURPLUS side (generation, growth, factory output) only — winter is
   what the builder layer must carry you through.
 
+## Idea box (unsorted — thrown in raw, to make sense of later)
+
+- **The 360-wheel is one wheel**: 360 days ↔ 360 degrees ↔ 360 hues. The
+  angle, the calendar and the colour wheel are the same circle. Anything
+  placed on one is automatically on the others.
+- **The sun dial** (built 2026-07-04, v0): a small circle top-centre, always
+  in view; the dot steps one position per day and wears the day's hue; tiny
+  shadows on elements cast away from it. No globe — hint at mechanics rather
+  than simulate them (standing aesthetic rule).
+- **Birthday unlock**: once a year the sun's hue equals the player's hue
+  (sun position == chosen angle) — something unlocks/happens on YOUR day.
+  What exactly: open.
+- Sun ideas not built: shadows lengthening with season; sunlight affecting
+  generation (ties to the builder layer); the dial as an earned instrument
+  (UI-is-progression applies to it too — dev build shows it always).
+
 ## Not built yet / parked
 
 - Cube view content (special tiles), parent-view "earn" mechanic, day
