@@ -288,6 +288,13 @@ nothing).
   quadrants — the coarse fronts; (3) opposite/complementary angles shape
   collaboration and trade favorability; triads (±120°), near-kin (±5°),
   and 180° rival-and-ideal-trading-partner are free extensions.
+  **The meanings are CONCEALED at pick time**: the picker shows pure
+  geometry (a number, a ray) — no hue preview, no faction hint. The
+  consequences reveal themselves in play (ideally exactly when the
+  social layer appears: your hue first renders when you first meet the
+  lattice/another player; your season phase is noticed, not announced).
+  Choosing blind makes the choice expressive rather than optimal;
+  spoilers only ever buy aesthetics, so foreknowledge is harmless.
 - **Seasons / weather (crude)**: sunlight varies over the 360-day year;
   every player runs the SAME season curve, phase-rotated by their angle,
   and starts at the same relative point in their own curve — fair by
