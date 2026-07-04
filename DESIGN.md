@@ -290,11 +290,23 @@ nothing).
   and 180° rival-and-ideal-trading-partner are free extensions.
   **The meanings are CONCEALED at pick time**: the picker shows pure
   geometry (a number, a ray) — no hue preview, no faction hint. The
-  consequences reveal themselves in play (ideally exactly when the
-  social layer appears: your hue first renders when you first meet the
-  lattice/another player; your season phase is noticed, not announced).
-  Choosing blind makes the choice expressive rather than optimal;
-  spoilers only ever buy aesthetics, so foreknowledge is harmless.
+  consequences reveal themselves in play, each at its own moment: the
+  HUE comes fairly early and with a USE — it marks what's YOURS (trail,
+  angle line, later buildings; candidate reveal moment: the first gate
+  opening — exact moment TBD). The faction/relational meanings wait for
+  the social layer; the season phase is noticed, not announced. Choosing
+  blind makes the choice expressive rather than optimal; spoilers only
+  ever buy aesthetics, so foreknowledge is harmless.
+- **The UI is progression** (2026-07-04): you don't only gain stats —
+  you gain INSTRUMENTS. Day one is nearly naked (a board, fog, your
+  feet); the clock, the expanded timeline, replay, the logs journal,
+  helpers, day navigation, the map/parent view — each is an unlockable
+  tool revealed at its own time, teaching its concept the moment it
+  arrives (onboarding = the reveal schedule; no tutorial). The dev build
+  is simply "everything unlocked". Discipline: build every UI surface as
+  an independent, gateable panel — never assume a panel exists from
+  day 1. This unifies the earlier notes: parent view "earned", go-up
+  hidden, abilities automating exploration — all instances of this rule.
 - **Seasons / weather (crude)**: sunlight varies over the 360-day year;
   every player runs the SAME season curve, phase-rotated by their angle,
   and starts at the same relative point in their own curve — fair by
