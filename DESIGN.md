@@ -323,10 +323,13 @@ nothing).
 - **The 360-wheel is one wheel**: 360 days ↔ 360 degrees ↔ 360 hues. The
   angle, the calendar and the colour wheel are the same circle. Anything
   placed on one is automatically on the others.
-- **The sun dial** (built 2026-07-04, v0): a small circle top-centre, always
-  in view; the dot steps one position per day and wears the day's hue; tiny
-  shadows on elements cast away from it. No globe — hint at mechanics rather
-  than simulate them (standing aesthetic rule).
+- **The sun dial** (built 2026-07-04, map-scale): a ring around the whole
+  board (over the seam), following the camera's board; the sun dot steps one
+  position per day and wears the day's hue. Shadows on walls/cubes are
+  hue-tinted and the HOUR raises/lowers the sun — shadow length stretches at
+  06:00/22:00, shrinks toward 14:00; length only, never rotation. No globe —
+  hint at mechanics rather than simulate them (standing aesthetic rule).
+  The user feels something is STILL MISSING in this idea — it's not settled.
 - **Birthday unlock**: once a year the sun's hue equals the player's hue
   (sun position == chosen angle) — something unlocks/happens on YOUR day.
   What exactly: open.
