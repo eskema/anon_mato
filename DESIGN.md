@@ -320,6 +320,19 @@ nothing).
 
 ## Idea box (unsorted — thrown in raw, to make sense of later)
 
+- **Land types (proposed 2026-07-05, not settled)**: heights from the key —
+  water classified on SMOOTHED values (coherent seas), mountains keep RAW
+  spikes. Three bases (water/plain/mountain) + subtypes from the neighbour
+  grammar (own base + 6 neighbours, priority marsh→beach→forest→plain):
+  water (fish, impassable on foot), plain (plants), beach (plain+water:
+  fish), marsh (plain+≥2 water: rich plants, slow), forest (plain+mountain:
+  WOOD, animals), mountain (ROCK), cliff (mountain+water: eggs, rock), peak
+  (raw ≥e: METAL, rare). 8 types total; quadrants are SKIN not mechanics
+  (same forest, boreal vs jungle look). Materials wood/rock/metal each have
+  one home; food = plants (plain/marsh) + animals (forest/fish). Open call:
+  water impassability vs never-strandable (deterministic repair or
+  expensive-until-boats).
+
 - **The centre tile vs the key's middle four (NOT settled)**: inscription is
   reading order (top-left→bottom-right, like text); 64 chars vs 61 tiles.
   Current build: centre shows the middle four as a 2×2 block. The user leans
