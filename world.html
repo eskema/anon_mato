@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>anon&mato — world dev view</title>
+  <style>
+    :root {
+      --surface: #f2f1ee;
+      --text: #1b1b1b;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --surface: #111;
+        --text: #eee;
+      }
+    }
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      background: var(--surface);
+      color: var(--text);
+      font: 600 16px system-ui, sans-serif;
+      overflow: hidden;
+    }
+    #ui {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 2;
+      display: grid;
+      gap: 8px;
+      background: color-mix(in srgb, var(--surface) 84%, transparent);
+      padding: 10px 12px;
+      border-radius: 8px;
+    }
+    #ui label {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    #key {
+      font: 12px ui-monospace, monospace;
+      max-width: 340px;
+      word-break: break-all;
+      opacity: 0.65;
+      font-weight: 400;
+    }
+    #legend {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      z-index: 2;
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      background: color-mix(in srgb, var(--surface) 84%, transparent);
+      padding: 8px 12px;
+      border-radius: 8px;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      cursor: grab;
+      touch-action: none;
+    }
+    button,
+    input {
+      font: inherit;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div style="display: flex; gap: 10px; align-items: center">
+      <button id="rnd">randomize world key</button>
+      <label><input type="checkbox" id="raw" /> raw heights</label>
+    </div>
+    <label>water &lt; <span id="wlv">4</span> <input id="wl" type="range" min="1" max="9" step="1" value="4" /></label>
+    <label>smoothing <span id="spv">1</span> <input id="sp" type="range" min="0" max="3" step="1" value="1" /></label>
+    <div id="key"></div>
+  </div>
+  <div id="legend"></div>
+  <canvas id="cv"></canvas>
+  <script type="module" src="./lib/worldview.js"></script>
+</body>
+</html>
