@@ -329,9 +329,17 @@ nothing).
   WOOD, animals), mountain (ROCK), cliff (mountain+water: eggs, rock), peak
   (raw ≥e: METAL, rare). 8 types total; quadrants are SKIN not mechanics
   (same forest, boreal vs jungle look). Materials wood/rock/metal each have
-  one home; food = plants (plain/marsh) + animals (forest/fish). Open call:
-  water impassability vs never-strandable (deterministic repair or
-  expensive-until-boats).
+  one home; food = plants (plain/marsh) + animals (forest/fish).
+  **WORLD-SCALE (clarified 2026-07-06)**: the terrain field spans the whole
+  parent level (~3721 tiles across all 61 boards, per-board nibble streams
+  from the hash chain; the literal npub inscription stays home-only =
+  identity, not terrain). Smoothing/adjacency are global, so seas and
+  ranges span boards. Seams stay always-walkable roads → water can be
+  hard-impassable with no stranding; interior tiles sealed behind water are
+  FUTURE CONTENT (boats). Open: seams in the terrain field — lean (b) roads
+  mechanically, dressed by what they pass through (ford/bridge/trail).
+  Bonus correspondence: home board (61 tiles) ↔ world (61 boards) — home
+  as the literal world minimap, earned by clearing it.
 
 - **The centre tile vs the key's middle four (NOT settled)**: inscription is
   reading order (top-left→bottom-right, like text); 64 chars vs 61 tiles.
