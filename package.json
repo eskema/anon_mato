@@ -2,9 +2,14 @@
   "name": "thrive",
   "version": "0.0.0",
   "private": true,
-  "description": "anon&mato \u2014 a hex-grid game napp (repo keeps the old working name thrive)",
+  "description": "anon&mato — a hex-grid game napp (repo keeps the old working name thrive)",
   "scripts": {
     "dev": "python3 -m http.server 4321 --bind 127.0.0.1",
-    "test": "node --test test/sim.test.js"
+    "test": "node --test test/sim.test.js",
+    "vendor": "esbuild node_modules/nostr-tools/lib/esm/pure.js --bundle --format=esm --minify --outfile=lib/vendor/nostr-pure.js && esbuild node_modules/nostr-tools/lib/esm/nip19.js --bundle --format=esm --minify --outfile=lib/vendor/nostr-nip19.js && esbuild node_modules/nostr-tools/lib/esm/nip44.js --bundle --format=esm --minify --outfile=lib/vendor/nostr-nip44.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "nostr-tools": "^2.23.9"
   }
 }
