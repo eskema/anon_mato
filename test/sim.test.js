@@ -23,6 +23,7 @@ import {
   BOARD_TILES,
   ENERGY_START,
   spiralOrder,
+  readingOrder,
   NIBBLE_TYPES
 } from "../lib/sim.js"
 import { DIRS } from "../lib/world.js"
@@ -413,13 +414,37 @@ test("the spiral covers the board once, centre-out, ring by ring", () => {
   }
 })
 
+test("reading order covers the board once, top-left to bottom-right", () => {
+  const ro = readingOrder()
+  assert.equal(ro.length, BOARD_TILES)
+  assert.equal(new Set(ro.map(Hex.key)).size, BOARD_TILES, "reading order revisits a tile")
+  assert.deepEqual(ro[0], [0, -RINGS], "must start at the top-left tile")
+  assert.deepEqual(ro[ro.length - 1], [0, RINGS], "must end at the bottom-right tile")
+  for (let i = 1; i < ro.length; i++) {
+    const [q, r] = ro[i]
+    const [pq, pr] = ro[i - 1]
+    assert.ok(r > pr || (r === pr && q === pq + 1), `not reading order at index ${i}`)
+  }
+})
+
 test("a pubkey inscribes the home board and binds the save", () => {
-  const pk = "f0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcd"
+  const pk = "f" + "0123456789abcdef".repeat(3) + "0123456789abcdef".slice(0, 15) // exactly 64 chars
+  assert.equal(pk.length, 64)
   const sim = createSim({ pubkey: pk })
-  // nibble 0 = 'f' = spring at the centre; nibble 1 = '0' = meadow at [0,-1]
-  assert.equal(sim.typeNameAt([0, 0]), "spring")
-  assert.equal(sim.typeNameAt([0, -1]), "meadow")
-  assert.equal(sim.typeNameAt([1, -1]), NIBBLE_TYPES[1]) // nibble 2 → spiral index 2
+  // reading order: char 0 = 'f' at the top-left tile, char 1 = '0' beside it
+  assert.equal(sim.nibbleAt([0, -RINGS]), "f")
+  assert.equal(sim.typeNameAt([0, -RINGS]), "spring")
+  assert.equal(sim.nibbleAt([1, -RINGS]), "0")
+  assert.equal(sim.typeNameAt([1, -RINGS]), "meadow")
+  // the centre holds the key's middle four; its type follows their first
+  assert.equal(sim.nibbleAt([0, 0]), pk.slice(30, 34))
+  assert.equal(sim.typeNameAt([0, 0]), NIBBLE_TYPES[parseInt(pk[30], 16)])
+  // every key char lands somewhere: 60 singles + the centre's four
+  const chars = readingOrder()
+    .map(t => sim.nibbleAt(t))
+    .join("")
+  assert.equal(chars.length, 64)
+  assert.equal([...chars].sort().join(""), [...pk].sort().join(""), "inscription lost or duplicated chars")
   // the inscription is home-only: a keyless sim stays plain
   assert.equal(createSim().typeNameAt([0, 0]), "plain")
   // home is safe — derived types must not change what anything charges there
