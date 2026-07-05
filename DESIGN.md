@@ -341,9 +341,16 @@ nothing).
 
 - Cube view content (special tiles), parent-view "earn" mechanic, day
   navigation + log editing UI, abilities/automation, fruit (first resource),
-  Nostr persistence, npub→world derivation (researched 2026-07-04 — spiral
-  mapping, weighted type tables, hash-chain depth, seam symmetry, vanity
-  mining as feature).
+  Nostr persistence (day events; the identity intake is live).
+- npub→world derivation: **v0 LIVE 2026-07-04** — setup step zero connects
+  window.nostr (NIP-07, keyless fallback = plain world); the pubkey's 64
+  nibbles inscribe the HOME board's tile types in centre-out spiral order
+  (weighted table meadow/grove/marsh/crag/spring, multipliers capped 2×,
+  free inside the safe home so replay semantics are untouched); the save
+  stamps world.pubkey and hydrate refuses identity mismatches. Researched
+  and parked for later: parent-scale inscription (the arc's real home for
+  it), hash-chain child derivation, seam symmetry, elevation layers from
+  SHA256(key), vanity mining as feature.
 - The angle-picker setup flow is LIVE again (2026-07-04): no save → the
   picker runs first and its angle seeds the world (`createSim({angle})`,
   per-instance gate); a save carries its angle and boots straight in; the
