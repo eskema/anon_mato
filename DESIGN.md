@@ -320,6 +320,16 @@ nothing).
 
 ## Idea box (unsorted — thrown in raw, to make sense of later)
 
+- **The centre tile vs the key's middle four (NOT settled)**: inscription is
+  reading order (top-left→bottom-right, like text); 64 chars vs 61 tiles.
+  Current build: centre shows the middle four as a 2×2 block. The user leans
+  toward the centre showing NO chars — candidate resolution: the middle four
+  go INSIDE the centre (they seed the special tile's interior / future cube
+  view) — conservation holds (the land contains the whole key; one tile's
+  share is interior, not surface) and the centre stays visually clean.
+  Also unsettled: what vanity-grinding buys under reading order (leading
+  chars = the board's TOP edge now, not the centre ring).
+
 - **The 360-wheel is one wheel**: 360 days ↔ 360 degrees ↔ 360 hues. The
   angle, the calendar and the colour wheel are the same circle. Anything
   placed on one is automatically on the others.
