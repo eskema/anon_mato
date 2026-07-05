@@ -352,6 +352,17 @@ nothing).
 - Cube view content (special tiles), parent-view "earn" mechanic, day
   navigation + log editing UI, abilities/automation, fruit (first resource),
   Nostr persistence (day events; the identity intake is live).
+- **Key roles (settled 2026-07-05)**: the MAIN key (extension, NIP-07) only
+  signs and inscribes the home tile — never a computational seed beyond
+  that. WORLDS derive from a separately GENERATED private key (throwaway):
+  malleability by design — regenerable worlds, multiple worlds per account,
+  rules migrations that don't touch identity. Custody of the generated
+  seed: local + NIP-44 self-encrypted relay backup (the user CAN read it —
+  sovereignty, not a leak; a client-side game cannot hold a secret from its
+  own user, and the replay/verify architecture requires the world seed to
+  be publicly recomputable anyway). For content that must stay a surprise:
+  time-revealed entropy (derive from H(seed ‖ future block hash/event id)),
+  not secrecy.
 - npub→world derivation: **v0 LIVE 2026-07-04** — setup step zero connects
   window.nostr (NIP-07, keyless fallback = plain world); the pubkey's 64
   nibbles inscribe the HOME board's tile types in centre-out spiral order
