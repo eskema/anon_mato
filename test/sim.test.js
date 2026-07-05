@@ -21,7 +21,9 @@ import {
   VIEW_RING,
   GATE_TILE,
   BOARD_TILES,
-  ENERGY_START
+  ENERGY_START,
+  spiralOrder,
+  NIBBLE_TYPES
 } from "../lib/sim.js"
 import { DIRS } from "../lib/world.js"
 import * as Hex from "../lib/hex.js"
@@ -390,6 +392,45 @@ test("the seam network is fully roamable and home stays reachable from any side"
   assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok, "gate edge refused re-entry")
   assert.equal(sim.view().tile, home)
   assert.equal(sim.kindOf(sim.view().player), "in")
+})
+
+// ── world derivation: the key inscribed on the home board ─────────
+test("the spiral covers the board once, centre-out, ring by ring", () => {
+  const spiral = spiralOrder()
+  assert.equal(spiral.length, BOARD_TILES)
+  assert.deepEqual(spiral[0], [0, 0])
+  assert.equal(new Set(spiral.map(Hex.key)).size, BOARD_TILES, "spiral revisits a tile")
+  // ring k occupies indices 1+3k(k-1) .. 3k(k+1), and every tile is ON ring k
+  for (let k = 1; k <= RINGS; k++) {
+    for (let i = 1 + 3 * k * (k - 1); i <= 3 * k * (k + 1); i++) {
+      assert.equal(Hex.length(spiral[i]), k, `spiral index ${i} off ring ${k}`)
+    }
+  }
+  // consecutive intra-ring entries are adjacent — the key reads as one walk
+  for (let i = 2; i < spiral.length; i++) {
+    if (Hex.length(spiral[i]) === Hex.length(spiral[i - 1]))
+      assert.equal(Hex.distance(spiral[i - 1], spiral[i]), 1, `spiral gap at ${i}`)
+  }
+})
+
+test("a pubkey inscribes the home board and binds the save", () => {
+  const pk = "f0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcd"
+  const sim = createSim({ pubkey: pk })
+  // nibble 0 = 'f' = spring at the centre; nibble 1 = '0' = meadow at [0,-1]
+  assert.equal(sim.typeNameAt([0, 0]), "spring")
+  assert.equal(sim.typeNameAt([0, -1]), "meadow")
+  assert.equal(sim.typeNameAt([1, -1]), NIBBLE_TYPES[1]) // nibble 2 → spiral index 2
+  // the inscription is home-only: a keyless sim stays plain
+  assert.equal(createSim().typeNameAt([0, 0]), "plain")
+  // home is safe — derived types must not change what anything charges there
+  const e0 = sim.energy()
+  assert.ok(sim.dispatch({ type: "scout", target: [0, -1] }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: [0, -1] }).ok)
+  assert.equal(sim.energy(), e0, "derived types must charge nothing inside the safe home")
+  const save = sim.serialize()
+  assert.equal(save.world.pubkey, pk)
+  assert.ok(createSim({ pubkey: pk }).hydrate(JSON.parse(JSON.stringify(save))).ok)
+  assert.equal(createSim().hydrate(save).ok, false, "a keyless sim must refuse an inscribed world's save")
 })
 
 // The chosen angle is per-world: it places the gate and rides the save stamp.
