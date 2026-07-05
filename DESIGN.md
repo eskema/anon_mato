@@ -340,6 +340,16 @@ nothing).
   mechanically, dressed by what they pass through (ford/bridge/trail).
   Bonus correspondence: home board (61 tiles) ↔ world (61 boards) — home
   as the literal world minimap, earned by clearing it.
+  **TWO-OCTAVE DERIVATION (validated in world.html, user-approved
+  2026-07-06)**: BASE = the world key's 64 nibbles on the PARENT grid in
+  reading order (centre board = middle four averaged — the home-inscription
+  scheme one scale up), interpolated between board centres (inverse-pitch
+  weights) so the macro field is continuous across seams — the world's
+  continental shape IS the key, readable at map scale. DETAIL = per-board
+  hash streams tweaking the base by (subkey − 7.5) × detail (~40% felt
+  right; slider 0% shows the pure macro = the key as one tile). Classify
+  water/mountains and run the biome grammar on the COMBINED field. This is
+  what graduates into the sim as the real height field.
 
 - **The centre tile vs the key's middle four (NOT settled)**: inscription is
   reading order (top-left→bottom-right, like text); 64 chars vs 61 tiles.
