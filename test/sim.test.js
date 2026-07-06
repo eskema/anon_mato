@@ -519,6 +519,51 @@ test("every board keeps a person: childkey identity, key-read stats", () => {
   assert.equal(createSim({ pubkey: pk, worldKey: wk }).npcAt([9, 9]), null, "no boards beyond the world")
 })
 
+test("lessons: a nearby figure teaches what it outranks you in; the save replays it", () => {
+  const pk = "f" + "0123456789abcdef".repeat(3) + "0123456789abcdef".slice(0, 15)
+  const wk = "e" + "9b3d0af2c4715068".repeat(3) + "9b3d0af2c471506"
+  const sim = createSim({ pubkey: pk, worldKey: wk })
+  clearHome(sim, makeRng(3))
+  assert.equal(sim.learnable().length, 0, "home has no teacher")
+  // out the gate and straight across the seam into the neighbour board
+  const doorstep = Hex.fromKey(GATE_EDGE.k)
+  assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok)
+  assert.ok(sim.dispatch({ type: "scout", target: GATE_TILE }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: GATE_TILE }).ok)
+  const dir = [GATE_TILE[0] - doorstep[0], GATE_TILE[1] - doorstep[1]]
+  const landing = [GATE_TILE[0] + dir[0], GATE_TILE[1] + dir[1]]
+  assert.ok(sim.dispatch({ type: "scout", target: landing }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: landing }).ok, "could not cross into the neighbour board")
+  assert.ok(sim.dispatch({ type: "clearBoard" }).ok)
+  // stand beside (or on) the board's centre — the figure lives there
+  const centre = sim.centreOf(sim.boardHexOf(sim.view().player))
+  const stand = [centre, ...DIRS.map(d => [centre[0] + d.q, centre[1] + d.r])].find(t => sim.canMove(t))
+  assert.ok(stand, "no walkable ground beside the figure")
+  assert.ok(sim.dispatch({ type: "move", target: stand }).ok)
+  const npc = sim.npcAt(sim.boardHexOf(sim.view().player))
+  assert.ok(npc, "the board keeps no figure")
+  const ls = sim.learnable()
+  assert.ok(ls.length > 0, "the figure has nothing to teach")
+  const skill = ls[0].skill
+  const before = sim.skillOf(skill)
+  assert.ok(sim.npcSkill(npc, skill) > before, "teacher must outrank the student")
+  // lessons cost minutes and raise the level; the clamp stops at the teacher
+  let guard = 0
+  while (sim.skillOf(skill) === before && guard++ < 5) {
+    const e0 = sim.energy()
+    const r = sim.dispatch({ type: "learn", skill })
+    if (!r.ok) break
+    assert.ok(sim.energy() < e0, "a lesson must spend time")
+  }
+  assert.ok(sim.skillOf(skill) > before, "lessons never raised the skill")
+  assert.ok(sim.skillOf(skill) <= sim.npcSkill(npc, skill), "learned past the teacher")
+  // the whole biography replays: hydrate rebuilds the same skills
+  const save = JSON.parse(JSON.stringify(sim.serialize()))
+  const back = createSim({ pubkey: pk, worldKey: wk })
+  assert.ok(back.hydrate(save).ok, "hydrate rejected a day with lessons")
+  assert.equal(back.skillOf(skill), sim.skillOf(skill), "replayed skills diverged")
+})
+
 test("water: visible from the shore, never underfoot", () => {
   const sim = createSim()
   sim.view().tile.types["0,-1"] = "water" // the stored-types hook: a pond beside the start

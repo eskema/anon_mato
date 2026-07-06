@@ -318,6 +318,18 @@ nothing).
   the SURPLUS side (generation, growth, factory output) only — winter is
   what the builder layer must carry you through.
 
+- **Skills: nature vs nurture (v1 LIVE 2026-07-06)**: everyone starts at
+  HALF their nature (`baseLevel = ⌊innate/2⌋`) and grows by learning; the
+  asymmetry is the design — the PLAYER caps at 15 (perseverance always
+  pays; the key sets the head start and the pace via `lessonXp`, never the
+  destination), an NPC caps at its OWN nature (experts keep permanent
+  value; teaching them toward their cap is v2). The `learn` action: 10
+  minutes beside a teacher who currently outranks you; xp clamps at the
+  teacher's level — nobody teaches past what they know. Learned progress is
+  day-snapshotted state that replays from the log (the save stays log-only;
+  your skills are literally your biography). First stat that bites: scout
+  level discounts scout cost (half price at 15) — RULES 4. Lessons surface
+  on the radial menu beside a figure ("learn scout 3→4").
 - **People + stats (v0 2026-07-06)**: every board except home keeps ONE
   figure. Its board's childkey doubles as its secret key —
   `getPublicKey(childSeed)` makes each NPC a REAL derivable nostr identity
