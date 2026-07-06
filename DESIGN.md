@@ -394,15 +394,20 @@ nothing).
   be publicly recomputable anyway). For content that must stay a surprise:
   time-revealed entropy (derive from H(seed ‖ future block hash/event id)),
   not secrecy.
-- npub→world derivation: **v0 LIVE 2026-07-04** — setup step zero connects
-  window.nostr (NIP-07, keyless fallback = plain world); the pubkey's 64
-  nibbles inscribe the HOME board's tile types in centre-out spiral order
-  (weighted table meadow/grove/marsh/crag/spring, multipliers capped 2×,
-  free inside the safe home so replay semantics are untouched); the save
-  stamps world.pubkey and hydrate refuses identity mismatches. Researched
-  and parked for later: parent-scale inscription (the arc's real home for
-  it), hash-chain child derivation, seam symmetry, elevation layers from
-  SHA256(key), vanity mining as feature.
+- **Terrain is IN THE SIM (2026-07-06)**: `createSim({worldKey})` derives
+  the two-octave field world-wide — the world key's 64 nibbles inscribe the
+  PARENT grid (same `inscribe()` as home, one scale up), interpolated
+  between board centres; per-board SHA-256 streams add the detail octave
+  (sync sha256 vendored from @noble/hashes). Base classes (raw mountains,
+  smoothed water, highland tarns) + the neighbour grammar (marsh→beach→
+  forest, escarpment cliffs, f-peaks) — all pure, cached, ~35ms for the
+  full world. New games generate a throwaway worldKey (main.js); the save
+  stamps it (SCHEMA 3) and hydrate refuses mismatches. **Biome costs are
+  deliberately NEUTRAL (all 1×)** — pricing terrain and water
+  impassability is the open decision; when it lands, RULES bumps. The
+  renderer paints biomes for discovered ground (world.html palette); the
+  pubkey inscription stays the home board's display layer (chars/greys),
+  no longer driving types.
 - The angle-picker setup flow is LIVE again (2026-07-04): no save → the
   picker runs first and its angle seeds the world (`createSim({angle})`,
   per-instance gate); a save carries its angle and boots straight in; the

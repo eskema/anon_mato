@@ -24,7 +24,7 @@ import {
   ENERGY_START,
   spiralOrder,
   readingOrder,
-  NIBBLE_TYPES
+  TILE_TYPES
 } from "../lib/sim.js"
 import { DIRS } from "../lib/world.js"
 import * as Hex from "../lib/hex.js"
@@ -433,12 +433,11 @@ test("a pubkey inscribes the home board and binds the save", () => {
   const sim = createSim({ pubkey: pk })
   // reading order: char 0 = 'f' at the top-left tile, char 1 = '0' beside it
   assert.equal(sim.nibbleAt([0, -RINGS]), "f")
-  assert.equal(sim.typeNameAt([0, -RINGS]), "spring")
   assert.equal(sim.nibbleAt([1, -RINGS]), "0")
-  assert.equal(sim.typeNameAt([1, -RINGS]), "meadow")
-  // the centre holds the key's middle four; its type follows their first
+  // the centre holds the key's middle four (display only — types come from
+  // the world key's terrain, not the pubkey inscription)
   assert.equal(sim.nibbleAt([0, 0]), pk.slice(30, 34))
-  assert.equal(sim.typeNameAt([0, 0]), NIBBLE_TYPES[parseInt(pk[30], 16)])
+  assert.equal(sim.typeNameAt([0, 0]), "plain")
   // every key char lands somewhere: 60 singles + the centre's four
   const chars = readingOrder()
     .map(t => sim.nibbleAt(t))
@@ -456,6 +455,34 @@ test("a pubkey inscribes the home board and binds the save", () => {
   assert.equal(save.world.pubkey, pk)
   assert.ok(createSim({ pubkey: pk }).hydrate(JSON.parse(JSON.stringify(save))).ok)
   assert.equal(createSim().hydrate(save).ok, false, "a keyless sim must refuse an inscribed world's save")
+})
+
+// The world key derives the terrain — deterministic, world-wide, save-bound.
+test("a world key derives deterministic biomes and binds the save", () => {
+  const wk = "e" + "9b3d0af2c4715068".repeat(3) + "9b3d0af2c471506" // 64 chars
+  assert.equal(wk.length, 64)
+  const a = createSim({ worldKey: wk })
+  const b = createSim({ worldKey: wk })
+  // sample the home board and ground far across the world
+  const samples = []
+  for (const t of Hex.range(RINGS)) samples.push(t)
+  for (const t of [[10, -5], [21, -10], [-20, 10], [9, 4], [-11, -4]]) {
+    if (a.kindOf(t) === "in") samples.push(t)
+  }
+  const biomesA = samples.map(t => a.typeNameAt(t))
+  const biomesB = samples.map(t => b.typeNameAt(t))
+  assert.deepEqual(biomesA, biomesB, "same key must derive the same world")
+  for (const t of biomesA) assert.ok(t in TILE_TYPES, `unknown biome ${t}`)
+  assert.ok(new Set(biomesA).size >= 2, "terrain came out uniform — derivation looks dead")
+  // a different key differs somewhere
+  const other = createSim({ worldKey: "0".repeat(63) + "1" })
+  assert.notDeepEqual(samples.map(t => other.typeNameAt(t)), biomesA)
+  // keyless sims stay plain; the save stamp binds the key
+  assert.equal(createSim().typeNameAt([2, -1]), "plain")
+  const save = a.serialize()
+  assert.equal(save.world.worldKey, wk)
+  assert.ok(createSim({ worldKey: wk }).hydrate(JSON.parse(JSON.stringify(save))).ok)
+  assert.equal(createSim().hydrate(save).ok, false, "a keyless sim must refuse a keyed world's save")
 })
 
 // The chosen angle is per-world: it places the gate and rides the save stamp.
