@@ -250,6 +250,11 @@ test("energy, reserve and ratchet invariants hold under random play", () => {
     clearHome(sim, makeRng(seed)) // open the gate so the fuzz can leave home
     for (const t of fuzz(sim, makeRng(seed), 400)) covered.add(t)
   }
+  // …and once more on a DERIVED world: priced biomes + impassable water must
+  // uphold the same invariants (the reserve prices typed ground exactly)
+  const keyed = createSim({ worldKey: "c4a1" + "9b3d0af2c4715068".repeat(3) + "9b3d0af2c471" })
+  clearHome(keyed, makeRng(7))
+  for (const t of fuzz(keyed, makeRng(7), 300)) covered.add(t)
   // The fuzz must actually cross out of the safe home, or the run proves nothing.
   for (const must of ["move", "scout", "cross"]) {
     assert.ok(covered.has(must), `fuzz never exercised '${must}'`)
@@ -483,6 +488,25 @@ test("a world key derives deterministic biomes and binds the save", () => {
   assert.equal(save.world.worldKey, wk)
   assert.ok(createSim({ worldKey: wk }).hydrate(JSON.parse(JSON.stringify(save))).ok)
   assert.equal(createSim().hydrate(save).ok, false, "a keyless sim must refuse a keyed world's save")
+})
+
+test("water: visible from the shore, never underfoot", () => {
+  const sim = createSim()
+  sim.view().tile.types["0,-1"] = "water" // the stored-types hook: a pond beside the start
+  assert.ok(sim.isFrontier([0, -1]), "the sea beside you must be scoutable")
+  assert.ok(sim.dispatch({ type: "scout", target: [0, -1] }).ok)
+  assert.equal(sim.canMove([0, -1]), false, "walked on water")
+  assert.equal(sim.dispatch({ type: "move", target: [0, -1] }).ok, false)
+})
+
+test("the home board never rolls open water (the gate must stay openable)", () => {
+  // an all-zero world key drowns the world — home must still be dry ground
+  for (const wk of ["0".repeat(64), "1" + "0".repeat(63)]) {
+    const sim = createSim({ worldKey: wk })
+    for (const t of Hex.range(RINGS)) {
+      assert.notEqual(sim.typeNameAt(t), "water", `home tile ${t} is water under ${wk.slice(0, 4)}…`)
+    }
+  }
 })
 
 // The chosen angle is per-world: it places the gate and rides the save stamp.

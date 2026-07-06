@@ -402,12 +402,18 @@ nothing).
   smoothed water, highland tarns) + the neighbour grammar (marsh→beach→
   forest, escarpment cliffs, f-peaks) — all pure, cached, ~35ms for the
   full world. New games generate a throwaway worldKey (main.js); the save
-  stamps it (SCHEMA 3) and hydrate refuses mismatches. **Biome costs are
-  deliberately NEUTRAL (all 1×)** — pricing terrain and water
-  impassability is the open decision; when it lands, RULES bumps. The
-  renderer paints biomes for discovered ground (world.html palette); the
-  pubkey inscription stays the home board's display layer (chars/greys),
-  no longer driving types.
+  stamps it (SCHEMA 3) and hydrate refuses mismatches. **Biomes are PRICED
+  (RULES 2, 2026-07-06)**: plain/beach 1×, forest 1.5×, marsh 2×,
+  mountain/cliff/peak 2× move + 2× scout — capped at 2×. **Water is
+  IMPASSABLE on foot** but scoutable (sight vs walk split: isFrontier uses
+  sightNeighbors, movement filters impassable ground; no leaping over or
+  onto water — straits are for boats). Seams stay the roads, so no terrain
+  roll strands anyone; sealed pockets = future content. **The home board
+  never rolls open water** (it must stay fully discoverable or the gate
+  could never open): home water demotes to marsh, neighbours still see the
+  water base so shores ring it. The renderer paints biomes for all
+  discovered ground INCLUDING home — the hex-digit char view is retired
+  (nibbleAt stays in the sim as identity data).
 - The angle-picker setup flow is LIVE again (2026-07-04): no save → the
   picker runs first and its angle seeds the world (`createSim({angle})`,
   per-instance gate); a save carries its angle and boots straight in; the
