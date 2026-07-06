@@ -383,22 +383,25 @@ nothing).
 - Cube view content (special tiles), parent-view "earn" mechanic, day
   navigation + log editing UI, abilities/automation, fruit (first resource),
   Nostr persistence (day events; the identity intake is live).
-- **Key roles (settled 2026-07-05)**: the MAIN key (extension, NIP-07) only
-  signs and inscribes the home tile — never a computational seed beyond
-  that. WORLDS derive from a separately GENERATED private key (throwaway):
-  malleability by design — regenerable worlds, multiple worlds per account,
-  rules migrations that don't touch identity. Custody of the generated
-  seed: local + NIP-44 self-encrypted relay backup (the user CAN read it —
-  sovereignty, not a leak; a client-side game cannot hold a secret from its
-  own user, and the replay/verify architecture requires the world seed to
-  be publicly recomputable anyway). For content that must stay a surprise:
-  time-revealed entropy (derive from H(seed ‖ future block hash/event id)),
-  not secrecy.
-- **Terrain is IN THE SIM (2026-07-06)**: `createSim({worldKey})` derives
-  the two-octave field world-wide — the world key's 64 nibbles inscribe the
-  PARENT grid (same `inscribe()` as home, one scale up), interpolated
-  between board centres; per-board SHA-256 streams add the detail octave
-  (sync sha256 vendored from @noble/hashes). Base classes (raw mountains,
+- **Key roles (corrected 2026-07-06 — supersedes the 07-05 note)**: the
+  MAIN key (extension, NIP-07) signs, inscribes the home board, and is the
+  world's BASE FIELD — the identity shapes the continents, permanently
+  ("each key inhabits its own world" made literal, and home = the world
+  minimap by construction: same inscription, two scales). The GENERATED
+  key (throwaway) seeds the per-board DETAIL streams — the regenerable
+  texture: rerolling it re-textures your world without changing its shape.
+  Custody of the generated seed: local + NIP-44 self-encrypted relay
+  backup (the user CAN read it — sovereignty, not a leak; a client-side
+  game cannot hold a secret from its own user, and the replay/verify
+  architecture requires world inputs to be publicly recomputable anyway).
+  For content that must stay a surprise: time-revealed entropy (derive
+  from H(seed ‖ future block hash/event id)), not secrecy.
+- **Terrain is IN THE SIM (2026-07-06)**: `createSim({pubkey, worldKey})`
+  derives the two-octave field world-wide — the PUBKEY's 64 nibbles
+  inscribe the PARENT grid (the same `inscribe()` as the home board: home
+  IS the world minimap), interpolated between board centres; the generated
+  world key seeds the per-board SHA-256 detail streams (sync sha256
+  vendored from @noble/hashes). Base classes (raw mountains,
   smoothed water, highland tarns) + the neighbour grammar (marsh→beach→
   forest, escarpment cliffs, f-peaks) — all pure, cached, ~35ms for the
   full world. New games generate a throwaway worldKey (main.js); the save

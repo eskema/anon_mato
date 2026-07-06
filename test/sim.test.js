@@ -252,7 +252,10 @@ test("energy, reserve and ratchet invariants hold under random play", () => {
   }
   // …and once more on a DERIVED world: priced biomes + impassable water must
   // uphold the same invariants (the reserve prices typed ground exactly)
-  const keyed = createSim({ worldKey: "c4a1" + "9b3d0af2c4715068".repeat(3) + "9b3d0af2c471" })
+  const keyed = createSim({
+    pubkey: "f" + "0123456789abcdef".repeat(3) + "0123456789abcdef".slice(0, 15),
+    worldKey: "c4a1" + "9b3d0af2c4715068".repeat(3) + "9b3d0af2c471"
+  })
   clearHome(keyed, makeRng(7))
   for (const t of fuzz(keyed, makeRng(7), 300)) covered.add(t)
   // The fuzz must actually cross out of the safe home, or the run proves nothing.
@@ -439,10 +442,11 @@ test("a pubkey inscribes the home board and binds the save", () => {
   // reading order: char 0 = 'f' at the top-left tile, char 1 = '0' beside it
   assert.equal(sim.nibbleAt([0, -RINGS]), "f")
   assert.equal(sim.nibbleAt([1, -RINGS]), "0")
-  // the centre holds the key's middle four (display only — types come from
-  // the world key's terrain, not the pubkey inscription)
+  // the centre holds the key's middle four (the same inscription also drives
+  // the world's BASE field — home never rolls open water regardless)
   assert.equal(sim.nibbleAt([0, 0]), pk.slice(30, 34))
-  assert.equal(sim.typeNameAt([0, 0]), "plain")
+  assert.ok(sim.typeNameAt([0, 0]) in TILE_TYPES)
+  assert.notEqual(sim.typeNameAt([0, 0]), "water")
   // every key char lands somewhere: 60 singles + the centre's four
   const chars = readingOrder()
     .map(t => sim.nibbleAt(t))
@@ -462,12 +466,14 @@ test("a pubkey inscribes the home board and binds the save", () => {
   assert.equal(createSim().hydrate(save).ok, false, "a keyless sim must refuse an inscribed world's save")
 })
 
-// The world key derives the terrain — deterministic, world-wide, save-bound.
-test("a world key derives deterministic biomes and binds the save", () => {
+// Terrain: the pubkey shapes the base field, the world key textures it —
+// deterministic, world-wide, save-bound.
+test("pubkey + world key derive deterministic biomes and bind the save", () => {
+  const pk = "f" + "0123456789abcdef".repeat(3) + "0123456789abcdef".slice(0, 15)
   const wk = "e" + "9b3d0af2c4715068".repeat(3) + "9b3d0af2c471506" // 64 chars
   assert.equal(wk.length, 64)
-  const a = createSim({ worldKey: wk })
-  const b = createSim({ worldKey: wk })
+  const a = createSim({ pubkey: pk, worldKey: wk })
+  const b = createSim({ pubkey: pk, worldKey: wk })
   // sample the home board and ground far across the world
   const samples = []
   for (const t of Hex.range(RINGS)) samples.push(t)
@@ -476,18 +482,18 @@ test("a world key derives deterministic biomes and binds the save", () => {
   }
   const biomesA = samples.map(t => a.typeNameAt(t))
   const biomesB = samples.map(t => b.typeNameAt(t))
-  assert.deepEqual(biomesA, biomesB, "same key must derive the same world")
+  assert.deepEqual(biomesA, biomesB, "same keys must derive the same world")
   for (const t of biomesA) assert.ok(t in TILE_TYPES, `unknown biome ${t}`)
   assert.ok(new Set(biomesA).size >= 2, "terrain came out uniform — derivation looks dead")
-  // a different key differs somewhere
-  const other = createSim({ worldKey: "0".repeat(63) + "1" })
-  assert.notDeepEqual(samples.map(t => other.typeNameAt(t)), biomesA)
-  // keyless sims stay plain; the save stamp binds the key
+  // a different world key re-textures; a different pubkey reshapes
+  assert.notDeepEqual(samples.map(t => createSim({ pubkey: pk, worldKey: "0".repeat(63) + "1" }).typeNameAt(t)), biomesA)
+  assert.notDeepEqual(samples.map(t => createSim({ pubkey: "7".repeat(64), worldKey: wk }).typeNameAt(t)), biomesA)
+  // keyless sims stay plain; the save stamp binds both keys
   assert.equal(createSim().typeNameAt([2, -1]), "plain")
   const save = a.serialize()
   assert.equal(save.world.worldKey, wk)
-  assert.ok(createSim({ worldKey: wk }).hydrate(JSON.parse(JSON.stringify(save))).ok)
-  assert.equal(createSim().hydrate(save).ok, false, "a keyless sim must refuse a keyed world's save")
+  assert.ok(createSim({ pubkey: pk, worldKey: wk }).hydrate(JSON.parse(JSON.stringify(save))).ok)
+  assert.equal(createSim({ pubkey: pk }).hydrate(save).ok, false, "a world-keyless sim must refuse a keyed save")
 })
 
 test("water: visible from the shore, never underfoot", () => {
@@ -500,11 +506,11 @@ test("water: visible from the shore, never underfoot", () => {
 })
 
 test("the home board never rolls open water (the gate must stay openable)", () => {
-  // an all-zero world key drowns the world — home must still be dry ground
-  for (const wk of ["0".repeat(64), "1" + "0".repeat(63)]) {
-    const sim = createSim({ worldKey: wk })
+  // an all-zero PUBKEY drowns the base field — home must still be dry ground
+  for (const pk of ["0".repeat(64), "1" + "0".repeat(63)]) {
+    const sim = createSim({ pubkey: pk, worldKey: "a".repeat(64) })
     for (const t of Hex.range(RINGS)) {
-      assert.notEqual(sim.typeNameAt(t), "water", `home tile ${t} is water under ${wk.slice(0, 4)}…`)
+      assert.notEqual(sim.typeNameAt(t), "water", `home tile ${t} is water under ${pk.slice(0, 4)}…`)
     }
   }
 })
