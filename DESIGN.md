@@ -248,6 +248,25 @@ nothing).
 4. Invalid actions are rejected by the sim (not just hidden by the UI).
 5. The sim runs headless.
 
+## The radial menu (2026-07-07)
+
+- The action menu is a **folder tree fanned around the player** over a soft
+  background disc reaching the tiles' edge (`lib/radial.js`). Icons only —
+  no text in badges (glyph system in `lib/icons.js`, shared with the style
+  guide); the focused badge shows its label in a fitted pill so nothing
+  overflows. Ring 1 = the nodes; a **folder** (node with children) fans its
+  children onto ring 2 around its own angle when opened.
+- **Groups**: `self` (things you do) and `them` (things with the figure you
+  face). With a `them` group the ring **splits** — self on the arc away from
+  the figure, them on the arc toward it. Helpers (go home / rest and resume
+  / clear board / reset) are now a folder here, not a bottom-left strip.
+- **Auto-open**: the menu opens itself on arriving at the home centre or
+  beside a figure (a context transition); dismissing closes it until you
+  move to another such spot. Clicking the player toggles it anywhere.
+- **Stats**: `your skills` / `their skills` badges toggle a skills card
+  (8 bars, level fill + a nature-cap tick) top-left. `playerStats()` /
+  `npcSkill` feed it; the figure's card notes its home biome.
+
 ## UI conventions
 
 - All UI text 16px (weight/opacity for hierarchy, never smaller sizes); the
