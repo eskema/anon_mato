@@ -332,6 +332,22 @@ nothing).
 
 ## Idea box (unsorted — thrown in raw, to make sense of later)
 
+- **NPCs as the skill economy (vision 2026-07-06)**: learn FROM them (some
+  are experts — innate stats from their childkey; the best teacher for each
+  skill lives somewhere in your world, find them), TEACH them, eventually
+  HIRE them — automation of manual tasks = the patterns pillar made
+  concrete. Architecture fit: innate stats stay pure (statsOf — the cap /
+  talent), LEARNED progress is state replayed from the log (day-journaled
+  ratchet like discovery; NPC overlays rebuilt from teach actions, never
+  saved). learn/teach/hire = ordinary ACTIONS entries (timed, energy-priced
+  — lessons cost your day). JOBS derive, never log: hire is the logged
+  intent (contract in day-start snapshots); execution is a pure payroll
+  tick inside sleep() (e.g. hired scout journalDiscovers N tiles in
+  canonical order, N = f(stat)) — replay recomputes it, day-editing
+  cascades. Wages = food/resources when they exist; contracts grow or
+  collapse like patterns. Sequencing: v1 learn (one skill that bites, e.g.
+  scout), v2 teach + NPC menu/stat display, v3 hire + sleep-tick executor.
+
 - **Land types (proposed 2026-07-05, not settled)**: heights from the key —
   water classified on SMOOTHED values (coherent seas), mountains keep RAW
   spikes. Three bases (water/plain/mountain) + subtypes from the neighbour
