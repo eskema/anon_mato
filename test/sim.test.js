@@ -26,7 +26,10 @@ import {
   readingOrder,
   TILE_TYPES,
   STAT_NAMES,
-  statsOf
+  statsOf,
+  BIOME_SKILL,
+  PLACE_BONUS,
+  SKILL_CAP
 } from "../lib/sim.js"
 import { DIRS } from "../lib/world.js"
 import * as Hex from "../lib/hex.js"
@@ -515,6 +518,15 @@ test("every board keeps a person: childkey identity, key-read stats", () => {
     for (const v of Object.values(s)) assert.ok(Number.isInteger(v) && v >= 0 && v <= 15)
   }
   assert.deepEqual(a.playerStats(), statsOf(pk), "the player reads by the same rule")
+  // place is nature for the stationary: the home biome's skill gets +3, capped
+  const raw = statsOf(n1.pubkey)
+  const homeSkill = BIOME_SKILL[a.typeNameAt(n1.pos)]
+  assert.equal(n1.place, homeSkill ?? null)
+  for (const s of STAT_NAMES) {
+    const want = s === homeSkill ? Math.min(SKILL_CAP, raw[s] + PLACE_BONUS) : raw[s]
+    assert.equal(n1.stats[s], want, `place bonus wrong on ${s}`)
+  }
+  assert.deepEqual(a.playerStats(), statsOf(pk), "the player gets NO place bonus — you move")
   assert.equal(createSim().npcAt([1, 0]), null, "no world key, no people")
   assert.equal(createSim({ pubkey: pk, worldKey: wk }).npcAt([9, 9]), null, "no boards beyond the world")
 })

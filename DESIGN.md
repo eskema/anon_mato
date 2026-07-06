@@ -330,6 +330,14 @@ nothing).
   your skills are literally your biography). First stat that bites: scout
   level discounts scout cost (half price at 15) — RULES 4. Lessons surface
   on the radial menu beside a figure ("learn scout 3→4").
+- **Place is nature — for the stationary (2026-07-07)**: an NPC's home
+  biome raises its innate (and so its cap) by +3 in that biome's skill.
+  Eight biomes ↔ eight skills, a bijection — every skill has a home terrain
+  and every terrain breeds its expert: water→travel, beach→trade,
+  marsh→tend, plain→gather, forest→craft, mountain→build, cliff→scout,
+  peak→lore. The player gets NO place bonus (you move; your nature is your
+  key alone). A figure standing on water is unreachable until you can get
+  to it — the expert you can see but not yet learn from is intentional.
 - **People + stats (v0 2026-07-06)**: every board except home keeps ONE
   figure. Its board's childkey doubles as its secret key —
   `getPublicKey(childSeed)` makes each NPC a REAL derivable nostr identity
