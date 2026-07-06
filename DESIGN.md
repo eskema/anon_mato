@@ -318,6 +318,18 @@ nothing).
   the SURPLUS side (generation, growth, factory output) only — winter is
   what the builder layer must carry you through.
 
+- **People + stats (v0 2026-07-06)**: every board except home keeps ONE
+  figure. Its board's childkey doubles as its secret key —
+  `getPublicKey(childSeed)` makes each NPC a REAL derivable nostr identity
+  (puppets of the world: anyone can recompute your world's people).
+  Constrained to its board; placed at the centre for now; styling TBD
+  (drawn as a smaller, quieter cube once its tile is discovered). **Stats
+  read any key by one rule** (`statsOf`): 64 nibbles → 8 skills, each the
+  rounded average of its 8-nibble slice (0..15) — the player's npub reads
+  the same way (`playerStats()`). Skill names are placeholders (scout,
+  travel, gather, build, craft, trade, tend, lore) — the system is the
+  point; mechanics hook in later.
+
 ## Idea box (unsorted — thrown in raw, to make sense of later)
 
 - **Land types (proposed 2026-07-05, not settled)**: heights from the key —

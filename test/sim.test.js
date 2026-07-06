@@ -24,7 +24,9 @@ import {
   ENERGY_START,
   spiralOrder,
   readingOrder,
-  TILE_TYPES
+  TILE_TYPES,
+  STAT_NAMES,
+  statsOf
 } from "../lib/sim.js"
 import { DIRS } from "../lib/world.js"
 import * as Hex from "../lib/hex.js"
@@ -494,6 +496,27 @@ test("pubkey + world key derive deterministic biomes and bind the save", () => {
   assert.equal(save.world.worldKey, wk)
   assert.ok(createSim({ pubkey: pk, worldKey: wk }).hydrate(JSON.parse(JSON.stringify(save))).ok)
   assert.equal(createSim({ pubkey: pk }).hydrate(save).ok, false, "a world-keyless sim must refuse a keyed save")
+})
+
+test("every board keeps a person: childkey identity, key-read stats", () => {
+  const pk = "f" + "0123456789abcdef".repeat(3) + "0123456789abcdef".slice(0, 15)
+  const wk = "e" + "9b3d0af2c4715068".repeat(3) + "9b3d0af2c471506"
+  const a = createSim({ pubkey: pk, worldKey: wk })
+  const b = createSim({ pubkey: pk, worldKey: wk })
+  assert.equal(a.npcAt([0, 0]), null, "home keeps no NPC — the player lives there")
+  const n1 = a.npcAt([1, 0])
+  assert.ok(/^[0-9a-f]{64}$/.test(n1.pubkey), "an NPC must be a real derivable identity")
+  assert.deepEqual(n1, b.npcAt([1, 0]), "NPCs must derive deterministically")
+  assert.notEqual(n1.pubkey, a.npcAt([0, 1]).pubkey, "boards must not share people")
+  assert.deepEqual(n1.pos, a.centreOf([1, 0]), "the figure stands at its board's centre")
+  // stats: one rule for every key — 8 named skills, integers 0..15
+  for (const s of [n1.stats, a.playerStats()]) {
+    assert.deepEqual(Object.keys(s), STAT_NAMES)
+    for (const v of Object.values(s)) assert.ok(Number.isInteger(v) && v >= 0 && v <= 15)
+  }
+  assert.deepEqual(a.playerStats(), statsOf(pk), "the player reads by the same rule")
+  assert.equal(createSim().npcAt([1, 0]), null, "no world key, no people")
+  assert.equal(createSim({ pubkey: pk, worldKey: wk }).npcAt([9, 9]), null, "no boards beyond the world")
 })
 
 test("water: visible from the shore, never underfoot", () => {
