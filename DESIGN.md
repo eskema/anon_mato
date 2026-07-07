@@ -250,12 +250,15 @@ nothing).
 
 ## The radial menu (2026-07-07)
 
-- The action menu is a **folder tree fanned around the player** over a soft
-  background disc reaching the tiles' edge (`lib/radial.js`). Icons only —
-  no text in badges (glyph system in `lib/icons.js`, shared with the style
-  guide); the focused badge shows its label in a fitted pill so nothing
-  overflows. Ring 1 = the nodes; a **folder** (node with children) fans its
-  children onto ring 2 around its own angle when opened.
+- The action menu lives on the **real hex grid** — 6 slots on the player's
+  neighbour tiles, same geometry as the map (laid out in `render.js`).
+  Behind it, a **padded tile silhouette** (every occupied cell as an
+  oversized hex, one union path — ~half a tile of padding), not a disc.
+  Icons only — no text in the hexes (glyph system in `lib/icons.js`, shared
+  with the style guide); the focused hex shows its label in a fitted pill.
+  A **folder** (node with children) fans its children onto outward cells
+  when opened: up to 3 on the ring-2 cells beyond its slot, then up to 5 on
+  ring-3 past those.
 - **Groups**: `self` (things you do) and `them` (things with the figure you
   face). With a `them` group the ring **splits** — self on the arc away from
   the figure, them on the arc toward it. Helpers (go home / rest and resume
