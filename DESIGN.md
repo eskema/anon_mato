@@ -263,8 +263,20 @@ nothing).
   face). With a `them` group the ring **splits** — self on the arc away from
   the figure, them on the arc toward it. Helpers (go home / rest and resume
   / clear board / reset) are now a folder here, not a bottom-left strip.
-- **Auto-open**: the menu opens itself on arriving at the home centre or
-  beside a figure (a context transition); dismissing closes it until you
+- **Focus**: opening the menu BLURS + dims the world; the tile you stand on
+  is punched back out sharp (player + figure stacked, both visible). Opening
+  a folder fades the previous level so attention falls on the new items.
+- **Every board centre is a special tile** — the resting place of its figure
+  (all six interior radial lines, like home's centre). Figures rest there
+  unless tasked; the player stacks BELOW the figure so both show. You inspect
+  a figure only while standing ON its centre.
+- **The ring is a split**: the 3 LEFT cells are YOU (self actions), the 3
+  RIGHT cells are whatever you're inspecting — a figure (learn / their
+  skills) if you're on its centre, otherwise the LAND under you (its facts:
+  biome, elevation, costs, yield; gather/work actions come with resources).
+  Home's own centre stays self-only.
+- **Auto-open**: the menu opens itself on arriving at the home centre or a
+  figure's centre (a context transition); dismissing closes it until you
   move to another such spot. Clicking the player toggles it anywhere.
 - **Stats**: `your skills` / `their skills` badges toggle a skills card
   (8 bars, level fill + a nature-cap tick) top-left. `playerStats()` /
