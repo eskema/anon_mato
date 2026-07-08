@@ -632,6 +632,35 @@ test("serialize → hydrate rebuilds the same world across days", () => {
   assert.equal(createSim().hydrate(bad).ok, false, "a rules mismatch must refuse")
 })
 
+// The trusted, chunked reload the game actually boots through: it re-APPLIES
+// history instead of re-ROUTING it (no per-action Dijkstra), so load stays
+// linear. It must land on the identical state, and it heals via-less saves.
+test("progressive reload matches the reference hydrate and self-heals via-less saves", async () => {
+  const sim = createSim()
+  clearHome(sim, makeRng(31))
+  fuzz(sim, makeRng(31), 150) // via-less moves across day boundaries — a legacy-shaped save
+  const raw = JSON.stringify(sim.serialize())
+  assert.ok(sim.day() > 1, "the fuzz never crossed a day — the test proves nothing")
+
+  const fast = createSim()
+  const r = await fast.hydrateProgressive(JSON.parse(raw))
+  assert.ok(r.ok, `hydrateProgressive rejected: ${r.reason}`)
+  assert.equal(stateSig(fast), stateSig(sim), "progressive reload diverged from the live world")
+
+  // self-heal: replaying stamped each move's route in, so the re-serialized save
+  // now carries `via`, and a second progressive reload is idempotent
+  const healed = fast.serialize()
+  const fast2 = createSim()
+  assert.ok((await fast2.hydrateProgressive(JSON.parse(JSON.stringify(healed)))).ok)
+  assert.deepEqual(fast2.serialize(), healed, "the healed save is not idempotent under reload")
+  assert.equal(stateSig(fast2), stateSig(sim), "reload of the healed save diverged")
+
+  // the gate still holds under the fast path: a rules mismatch is refused
+  const bad = JSON.parse(raw)
+  bad.world.rules = -1
+  assert.equal((await createSim().hydrateProgressive(bad)).ok, false, "a rules mismatch must refuse")
+})
+
 // The leap: the DIAGONAL — the tile beyond the edge two adjacent neighbours
 // share — for ONE step's price, over known unwalled ground. Straight through
 // a tile's CENTRE is not a leap; the crack between tiles is the road.

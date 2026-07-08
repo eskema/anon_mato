@@ -38,10 +38,55 @@
       cursor: pointer;
     }
     #theme:hover { opacity: 1; }
+
+    /* boot loader — painted immediately, hidden once the world is ready */
+    #loading {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-content: center;
+      justify-items: center;
+      gap: 20px;
+      background: var(--surface);
+      color: var(--text);
+      z-index: 10;
+      transition: opacity 0.3s ease;
+    }
+    #loading .spinner {
+      width: 34px;
+      height: 34px;
+      border: 3px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      opacity: 0.55;
+      animation: spin 0.8s linear infinite;
+    }
+    #loading .load-msg { font-size: 16px; opacity: 0.7; }
+    #loading .load-track {
+      width: 180px;
+      height: 4px;
+      border-radius: 2px;
+      background: color-mix(in srgb, var(--text) 15%, transparent);
+      overflow: hidden;
+    }
+    #loading #load-bar {
+      height: 100%;
+      width: 0%;
+      background: currentColor;
+      opacity: 0.55;
+      border-radius: 2px;
+      transition: width 0.12s linear;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
   <canvas id="stage"></canvas>
+  <div id="loading" role="status" aria-live="polite">
+    <div class="spinner"></div>
+    <div class="load-msg">Loading your world…</div>
+    <div class="load-track"><div id="load-bar"></div></div>
+  </div>
   <button id="theme" aria-label="Toggle light/dark"></button>
   <script type="module" src="./lib/main.js"></script>
 </body>
