@@ -750,6 +750,51 @@ test("retracing home stays affordable at full depletion", () => {
   assert.ok(Hex.equals(sim.view().player, sim.view().entry), "did not land back on the entry")
 })
 
+// EXHAUSTION: once no exploring move is left, movement is locked to the way home
+// (only the return-path tiles are walkable); scouting/learning stay free.
+test("exhausted: movement locks to the way home", () => {
+  const sim = createSim()
+  clearHome(sim, makeRng(5))
+  const doorstep = Hex.fromKey(GATE_EDGE.k)
+  sim.dispatch({ type: "move", target: doorstep })
+  sim.dispatch({ type: "scout", target: GATE_TILE })
+  sim.dispatch({ type: "move", target: GATE_TILE })
+  // walk out along the seam until nothing outward is affordable
+  for (let guard = 0; guard < 60; guard++) {
+    const v = sim.view()
+    const next = Hex.neighbors(v.player).find(
+      n => sim.kindOf(n) === "seam" && !v.trail.some(t => Hex.equals(t, n)) && (sim.isDiscovered(n) || sim.canScout(n))
+    )
+    if (!next) break
+    if (!sim.isDiscovered(next) && !sim.dispatch({ type: "scout", target: next }).ok) break
+    if (!sim.canMove(next)) break
+    sim.dispatch({ type: "move", target: next })
+  }
+  assert.ok(sim.exhausted(), "the outing never reached exhaustion")
+  const v = sim.view()
+  const hp = sim.homePath()
+  assert.ok(hp && hp.length >= 2, "no way home computed at exhaustion")
+  assert.ok(Hex.equals(hp[0], v.player) && Hex.equals(hp[hp.length - 1], v.entry), "the way home must run player → home centre")
+
+  // every movable tile while exhausted sits on that return path
+  const onPath = new Set(hp.map(t => `${t[0]},${t[1]}`))
+  let movable = 0
+  for (const d of Hex.range(VIEW_RING)) {
+    const h = [v.player[0] + d[0], v.player[1] + d[1]]
+    if (!sim.kindOf(h) || Hex.equals(h, v.player)) continue
+    if (sim.canMove(h)) {
+      movable++
+      assert.ok(onPath.has(`${h[0]},${h[1]}`), `off-path move allowed while exhausted: ${h}`)
+    }
+  }
+  assert.ok(movable > 0, "exhausted with no walkable way home")
+
+  // the next step home is walkable, and the walk lands on the home centre
+  assert.ok(sim.canMove(hp[1]), "the next step home is blocked")
+  assert.ok(sim.dispatch({ type: "move", target: v.entry }).ok, "the walk home was rejected")
+  assert.ok(Hex.equals(sim.view().player, v.entry))
+})
+
 test("seam scouting respects the reserve outside the safe space", () => {
   let checked = 0
   for (const seed of [11, 222, 3333, 777]) {
