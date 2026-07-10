@@ -34,8 +34,9 @@ speculative abstractions for unbuilt features.
   patterns grow or collapse; on collapse they revert to the base pattern and
   the player goes back to tweak them.
 - **Energy IS time (minutes).** Traversal spends time. Start with a very
-  reduced budget (60 min, grows later). Home is timeless — no cost there, and
-  it's where time/energy resets.
+  reduced budget (60 min, grows later). Home is where time/energy resets, but
+  it is NOT timeless: every step/scout there costs a flat minute (see below),
+  so clearing home spans several days.
 - **Day cycle.** Awake 06:00–22:00, must sleep at 22:00 (wakes 06:00). The
   player cannot leave home during sleep hours.
 - **Time vs tiles are SEPARATE axes.** Time is one continuous clock; a
@@ -54,8 +55,10 @@ speculative abstractions for unbuilt features.
 - **We start at depth 1, INSIDE the home tile** (`BASE_DEPTH = 1`). The
   outside/map view (depth 0) exists as a locked parent, "gained" later.
 - **Inside-home is the default view** and a **safe space** (`safe: true`):
-  free movement/discovery (no energy cost, no reserve), fully walled with a
-  single (initially closed) gate. You start on the **centre special tile**
+  a flat COST_BASE (1 min) per step/scout regardless of biome, and the reserve
+  prices the walk back to the centre rest spot like anywhere else. Safe means
+  "can rest / no biome multipliers / no stranding," NOT free. Fully walled with
+  a single (initially closed) gate. You start on the **centre special tile**
   (opens the cube view — reserved for special tiles, not built out yet). The
   home interior is otherwise a NORMAL tile — no special-casing beyond its
   props. Clearing it is the first task: that opens the gate.
@@ -116,8 +119,8 @@ speculative abstractions for unbuilt features.
   **cleared** (all 61 hexes discovered). GATE_TILE — the seam hex just beyond
   the gate edge — still names where the ray exits the grid. The seam itself
   is outside every wall — and outside the safe umbrella: inside the home,
-  interior moves/scouts are free, but anything targeting seam or beyond
-  charges normally.
+  interior moves/scouts cost the flat safe rate (1 min), while anything
+  targeting seam or beyond charges the normal biome rate.
 - **Tile types**: every hex can carry a type (sparse, per tile node); a type's
   properties are cost multipliers on the level base. Seam tiles default to the
   `seam` type (move ×0.5 — the cheap roads); board interiors default to
@@ -159,7 +162,8 @@ speculative abstractions for unbuilt features.
   least one resting place is affordably reachable, so a saved state is always
   a safe state. The reserve is the true cheapest charge from a position to
   the NEAREST resting place over discovered ground — one multi-source
-  Dijkstra seeded at every spot (steps into safe interiors charge 0), cached
+  Dijkstra seeded at every spot (steps inside safe interiors charge the flat
+  safe rate, so the reserve prices the home walk too), cached
   until discovery/walls/the spot list change. `canMove(t)` = route exists AND
   path + reserve-from-t is affordable; `canScout` = frontier AND scout +
   current reserve affordable. **Never-strandable** is literal: at

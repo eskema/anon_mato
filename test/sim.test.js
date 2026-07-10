@@ -152,11 +152,12 @@ function worldSig(tile, path = "root", out = []) {
   return out
 }
 
-// Discover the whole home board (free inside the safe space) — the gate's
-// opening condition. Random scout-first walk; deterministic per seed.
+// Discover the whole home board — the gate's opening condition. Home now costs a
+// minute per step/scout, so this spans several days: scout-first random walk,
+// and when a day runs dry, go home to refill and resume. Deterministic per seed.
 function clearHome(sim, rng) {
   const home = sim.view().tile
-  for (let guard = 0; guard < 4000 && home.discovered.size < BOARD_TILES; guard++) {
+  for (let guard = 0; guard < 8000 && home.discovered.size < BOARD_TILES; guard++) {
     const opts = candidates(sim)
     const scouts = opts.filter(o => o.type === "scout")
     if (scouts.length) {
@@ -164,10 +165,17 @@ function clearHome(sim, rng) {
       continue
     }
     const moves = opts.filter(o => o.type === "move")
-    if (!moves.length) break
-    sim.dispatch(pick(rng, moves))
+    if (moves.length) {
+      sim.dispatch(pick(rng, moves))
+      continue
+    }
+    // out of affordable work for today — rest at home and pick it up tomorrow
+    sim.dispatch({ type: "goHome" })
   }
   assert.equal(home.discovered.size, BOARD_TILES, "failed to clear the home board")
+  // leave the player rested at home with a full day ahead — callers venture out
+  // from here (home is no longer free, so the clearing day itself ends depleted)
+  sim.dispatch({ type: "goHome" })
   return home
 }
 
@@ -325,7 +333,10 @@ test("crossing steps over the seam onto the exact tile and discovers the parent 
     const scouts = opts.filter(o => o.type === "scout")
     const moves = opts.filter(o => o.type === "move")
     const a = scouts.length && rng() < 0.7 ? pick(rng, scouts) : moves.length ? pick(rng, moves) : null
-    if (!a) break
+    if (!a) {
+      sim.dispatch({ type: "goHome" }) // depleted before reaching the seam — rest and resume
+      continue
+    }
     sim.dispatch(a)
   }
   assert.ok(crossTarget, "never found a crossing out of the home safe space")
@@ -460,11 +471,12 @@ test("a pubkey inscribes the home board and binds the save", () => {
   assert.equal([...chars].sort().join(""), [...pk].sort().join(""), "inscription lost or duplicated chars")
   // the inscription is home-only: a keyless sim stays plain
   assert.equal(createSim().typeNameAt([0, 0]), "plain")
-  // home is safe — derived types must not change what anything charges there
+  // home is safe — every step/scout there costs a flat minute, and the derived
+  // biome type must not change that (no biome multipliers inside home)
   const e0 = sim.energy()
   assert.ok(sim.dispatch({ type: "scout", target: [0, -1] }).ok)
   assert.ok(sim.dispatch({ type: "move", target: [0, -1] }).ok)
-  assert.equal(sim.energy(), e0, "derived types must charge nothing inside the safe home")
+  assert.equal(sim.energy(), e0 - 2, "a home scout + step must charge a flat minute each, whatever the type")
   const save = sim.serialize()
   assert.equal(save.world.pubkey, pk)
   assert.ok(createSim({ pubkey: pk }).hydrate(JSON.parse(JSON.stringify(save))).ok)
