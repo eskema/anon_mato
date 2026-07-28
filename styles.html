@@ -80,6 +80,8 @@
     #pg .ruler.v { top: 0; bottom: 0; width: 0; border-left: 1px dashed color-mix(in srgb, var(--text) 18%, transparent); }
     #pg .ruler.h { left: 0; right: 0; height: 0; border-top: 1px dashed color-mix(in srgb, var(--text) 18%, transparent); }
     #pg .coords { position: absolute; left: 6px; bottom: 4px; font-size: 11px; opacity: 0.35; pointer-events: none; }
+    /* the icon creator injects its own styles (lib/iconmaker.js); it fills this box */
+    #iconmaker { height: 78vh; border: 1px solid color-mix(in srgb, var(--text) 15%, transparent); border-radius: 10px; }
 
     #theme {
       position: fixed; right: 14px; bottom: 14px; width: 38px; height: 38px;
@@ -88,6 +90,15 @@
     }
     #theme:hover { opacity: 1; }
     a { color: inherit; }
+
+    /* clock harness */
+    .clockdemo { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+    #clockcanvas { width: clamp(340px, 74vh, 640px); height: clamp(340px, 74vh, 640px); border-radius: 10px; touch-action: none; background: color-mix(in srgb, var(--text) 4%, transparent); }
+    .clockctrl { display: grid; gap: 14px; align-content: start; min-width: 240px; }
+    .clockctrl label { display: grid; gap: 4px; font-size: 12px; font-weight: 600; }
+    .clockctrl label span { opacity: 0.5; }
+    .clockctrl input[type="range"] { width: 240px; }
+    .clockout { font-size: 13px; opacity: 0.7; line-height: 1.7; }
   </style>
 </head>
 <body>
@@ -121,6 +132,20 @@
     </section>
 
     <section>
+      <header>clock (unrestricted) — the game's dial, no gameplay limits. drag the sun to set the day; scrub the hour + budget. below the horizon the sun is eclipsed and the dial goes to night, where the 12 skill CONSTELLATIONS ride the wheel — hit “play the year” (keep the hour near midnight) to watch it rotate + the moon wash them in and out:</header>
+      <div class="clockdemo">
+        <canvas id="clockcanvas" width="640" height="640"></canvas>
+        <div class="clockctrl">
+          <label>day <span id="clockdayv">1</span><input id="clockday" type="range" min="1" max="360" value="1" /></label>
+          <label>hour <span id="clockhourv">00:00</span><input id="clockhour" type="range" min="0" max="1439" value="0" /></label>
+          <label>waking budget <span id="clockbudgetv">1440m</span><input id="clockbudget" type="range" min="1" max="1440" value="1440" /></label>
+          <button id="clockplay" type="button" style="justify-self:start;padding:8px 14px;font:600 13px system-ui,sans-serif;border:1px solid var(--text);border-radius:8px;background:transparent;color:var(--text);cursor:pointer">▶ play the year</button>
+          <div id="clockout" class="clockout"></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
       <header>playground — pick an icon, click the grid to place (8px snap), click an item to remove:</header>
       <div class="pgbar">
         <div class="palette" id="palette"></div>
@@ -135,6 +160,11 @@
         <div class="ruler h" hidden></div>
         <div class="coords" hidden></div>
       </div>
+    </section>
+
+    <section>
+      <header>icon creator — a pointy-top hex on an iso triangle grid (like the cube view). click a wedge to fill it; the line tool snaps to triangle corners:</header>
+      <div id="iconmaker"></div>
     </section>
   </main>
   <button id="theme" aria-label="Toggle light/dark"></button>

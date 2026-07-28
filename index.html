@@ -21,23 +21,6 @@
       color: var(--text);
     }
     canvas { display: block; width: 100vw; height: 100vh; }
-    #theme {
-      position: fixed;
-      right: 14px;
-      bottom: 14px;
-      width: 38px;
-      height: 38px;
-      display: grid;
-      place-items: center;
-      border: none;
-      background: transparent;
-      color: var(--text);
-      font-size: 18px;
-      line-height: 1;
-      opacity: 0.55;
-      cursor: pointer;
-    }
-    #theme:hover { opacity: 1; }
 
     /* boot loader — painted immediately, hidden once the world is ready */
     #loading {
@@ -87,7 +70,6 @@
     <div class="load-msg">Loading your world…</div>
     <div class="load-track"><div id="load-bar"></div></div>
   </div>
-  <button id="theme" aria-label="Toggle light/dark"></button>
   <script type="module" src="./lib/main.js"></script>
 </body>
 </html>

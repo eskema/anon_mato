@@ -17,11 +17,15 @@ import {
   GATE_EDGE,
   SUPER,
   RINGS,
+  RULES,
   SEAM_RING,
   VIEW_RING,
   GATE_TILE,
   BOARD_TILES,
   ENERGY_START,
+  SEED_MIN,
+  FREE_CAP,
+  WEAR_FLOOR,
   spiralOrder,
   readingOrder,
   TILE_TYPES,
@@ -29,7 +33,9 @@ import {
   statsOf,
   BIOME_SKILL,
   PLACE_BONUS,
-  SKILL_CAP
+  SKILL_CAP,
+  baseLevel,
+  edgesForLevel
 } from "../lib/sim.js"
 import { DIRS } from "../lib/world.js"
 import * as Hex from "../lib/hex.js"
@@ -121,10 +127,14 @@ function candidates(sim) {
     if (sim.canMove(h) && !Hex.equals(h, v.player)) out.push({ type: "move", target: h })
     else if (sim.isFrontier(h) && sim.canScout(h)) out.push({ type: "scout", target: h })
   }
-  // retrace moves carry their explicit route in the log (the `via` form)
-  for (let i = 0; i < v.trail.length - 1; i++) {
-    const via = sim.retraceRoute(v.trail[i])
-    if (via) out.push({ type: "move", target: v.trail[i], via })
+  // some moves carry their explicit route (the `via` form the app records so
+  // replay stays linear) — offer a via variant for each reachable neighbour
+  for (const d of Hex.range(VIEW_RING)) {
+    const h = [v.player[0] + d[0], v.player[1] + d[1]]
+    if (sim.canMove(h) && !Hex.equals(h, v.player)) {
+      const via = sim.routeTo(h)
+      if (via) out.push({ type: "move", target: h, via })
+    }
   }
   if (sim.canEnter()) out.push({ type: "enter" })
   if (v.tile.safe && Hex.equals(v.player, [0, 0])) out.push({ type: "rest" })
@@ -222,9 +232,10 @@ function fuzz(sim, rng, steps, { allowRest = true } = {}) {
     // restResume legitimately rejects when the way back out isn't affordable
     if (a.type === "restResume" && !r.ok) continue
     assert.ok(r.ok, `enumerated action rejected: ${JSON.stringify(a)} (${r.reason})`)
-    // Invariant 1: energy never negative, never above the refill.
+    // Invariant 1: energy never negative, never above the DAY'S budget (which
+    // grows with discovery — energy only spends down from the day's start).
     assert.ok(sim.energy() > -1e-9, `energy went negative (${sim.energy()}) after ${a.type}`)
-    assert.ok(sim.energy() <= ENERGY_START + 1e-9, `energy above start after ${a.type}`)
+    assert.ok(sim.energy() <= sim.dayBudget() + 1e-9, `energy above the day's budget after ${a.type}`)
     // Invariant 2: never strandable — outside safe tiles the reserve stays affordable.
     if (!sim.view().tile.safe) {
       assert.ok(
@@ -246,11 +257,8 @@ function fuzz(sim, rng, steps, { allowRest = true } = {}) {
       const dd = Hex.distance(tr[i2 - 1], tr[i2])
       assert.ok(dd === 1 || (dd === 2 && diagLeap(tr[i2 - 1], tr[i2])), `trail gap after ${a.type}`)
     }
-    // and an immediate there-and-back must have popped, not appended
-    if (tr.length >= 3) {
-      const [a3, , c3] = [tr[tr.length - 3], tr[tr.length - 2], tr[tr.length - 1]]
-      assert.ok(!Hex.equals(a3, c3), `unpopped backtrack after ${a.type}`)
-    }
+    // the trail is a full record now: a there-and-back APPENDS (never pops), so
+    // consecutive-but-one repeats are expected — only gaps are a bug (checked above)
   }
   return seen
 }
@@ -364,10 +372,11 @@ test("crossing steps over the seam onto the exact tile and discovers the parent 
   assert.ok(sim.view().trail.length > trailBefore, "trail did not continue through the crossing")
   assert.ok(sim.isDiscovered(seamHex), "seam discovery lost")
 
-  // and straight back: the same coordinates, the same world
+  // and straight back: the same coordinates, the same world (a plain walk back —
+  // no elastic retrace, the return records onto the trail)
   const back = route[0]
-  const via = sim.retraceRoute(back)
-  assert.ok(via, "cannot retrace back across the crossing")
+  const via = sim.routeTo(back)
+  assert.ok(via, "cannot route back across the crossing")
   assert.ok(sim.dispatch({ type: "move", target: back, via }).ok)
   assert.deepEqual(sim.view().player, back)
   // walk home to its centre — bookkeeping lands back on the home board
@@ -472,11 +481,17 @@ test("a pubkey inscribes the home board and binds the save", () => {
   // the inscription is home-only: a keyless sim stays plain
   assert.equal(createSim().typeNameAt([0, 0]), "plain")
   // home is safe — every step/scout there costs a flat minute, and the derived
-  // biome type must not change that (no biome multipliers inside home)
-  const e0 = sim.energy()
+  // biome type must not change that (no biome multipliers inside home). Day
+  // one's single minute buys exactly one scout:
+  assert.equal(sim.energy(), SEED_MIN)
   assert.ok(sim.dispatch({ type: "scout", target: [0, -1] }).ok)
-  assert.ok(sim.dispatch({ type: "move", target: [0, -1] }).ok)
-  assert.equal(sim.energy(), e0 - 2, "a home scout + step must charge a flat minute each, whatever the type")
+  assert.equal(sim.energy(), SEED_MIN - 1, "a home scout charges a flat minute, whatever the type")
+  // clear home to bank a real budget, then a step likewise costs one flat minute
+  sim.dispatch({ type: "clearBoard" })
+  sim.dispatch({ type: "rest" })
+  const e1 = sim.energy()
+  assert.ok(sim.dispatch({ type: "move", target: [1, 0] }).ok)
+  assert.equal(sim.energy(), e1 - 1, "a home step charges a flat minute, whatever the type")
   const save = sim.serialize()
   assert.equal(save.world.pubkey, pk)
   assert.ok(createSim({ pubkey: pk }).hydrate(JSON.parse(JSON.stringify(save))).ok)
@@ -568,16 +583,22 @@ test("lessons: a nearby figure teaches what it outranks you in; the save replays
   assert.ok(npc, "the board keeps no figure")
   const ls = sim.learnable()
   assert.ok(ls.length > 0, "the figure has nothing to teach")
-  const skill = ls[0].skill
+  // the lowest-level teachable skill — fewest edges (lessons) to climb a level
+  const skill = ls.reduce((a, b) => (b.at < a.at ? b : a)).skill
   const before = sim.skillOf(skill)
   assert.ok(sim.npcSkill(npc, skill) > before, "teacher must outrank the student")
-  // lessons cost minutes and raise the level; the clamp stops at the teacher
+  // lessons cost minutes and raise the level; the clamp stops at the teacher.
+  // A level now takes (level+1) whole edges, so allow plenty of lessons.
   let guard = 0
-  while (sim.skillOf(skill) === before && guard++ < 5) {
+  while (sim.skillOf(skill) === before && guard++ < 300) {
     const e0 = sim.energy()
     const r = sim.dispatch({ type: "learn", skill })
-    if (!r.ok) break
-    assert.ok(sim.energy() < e0, "a lesson must spend time")
+    if (r.ok) {
+      assert.ok(sim.energy() < e0, "a lesson must spend time")
+      continue
+    }
+    // out of the day's budget for this lesson — rest and resume, then keep going
+    if (!sim.dispatch({ type: "restResume" }).ok) break
   }
   assert.ok(sim.skillOf(skill) > before, "lessons never raised the skill")
   assert.ok(sim.skillOf(skill) <= sim.npcSkill(npc, skill), "learned past the teacher")
@@ -586,6 +607,106 @@ test("lessons: a nearby figure teaches what it outranks you in; the save replays
   const back = createSim({ pubkey: pk, worldKey: wk })
   assert.ok(back.hydrate(save).ok, "hydrate rejected a day with lessons")
   assert.equal(back.skillOf(skill), sim.skillOf(skill), "replayed skills diverged")
+})
+
+// Movement is ONLY the reserve: you may go anywhere you can reach and still walk
+// home from. There is no position-based lock — revealing every tile around you
+// (nothing new underfoot, or standing at the map's edge) never strands you while
+// you have the margin to step to reachable ground and back.
+test("movement is exactly the reserve — a fully-seen ring never locks you in place", () => {
+  const pk = "f" + "0123456789abcdef".repeat(3) + "0123456789abcdef".slice(0, 15)
+  const wk = "e" + "9b3d0af2c4715068".repeat(3) + "9b3d0af2c471506"
+  const sim = createSim({ pubkey: pk, worldKey: wk })
+  clearHome(sim, makeRng(3))
+  const doorstep = Hex.fromKey(GATE_EDGE.k)
+  assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok)
+  assert.ok(sim.dispatch({ type: "scout", target: GATE_TILE }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: GATE_TILE }).ok)
+  const dir = [GATE_TILE[0] - doorstep[0], GATE_TILE[1] - doorstep[1]]
+  const landing = [GATE_TILE[0] + dir[0], GATE_TILE[1] + dir[1]]
+  assert.ok(sim.dispatch({ type: "scout", target: landing }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: landing }).ok)
+  // reveal the ENTIRE ring around the player — nothing adjacent is fog anymore
+  for (const n of Hex.neighbors(sim.view().player))
+    if (!sim.isDiscovered(n) && sim.canScout(n)) sim.dispatch({ type: "scout", target: n })
+  assert.equal(sim.reachableDots().size, 0, "no fog should be left directly underfoot")
+  assert.ok(sim.energy() > sim.returnCost() + 5, "plenty of margin over the reserve")
+  // NOT locked: some discovered neighbour is still movable, and every legal move
+  // is EXACTLY the reserve rule — reach cost + the way home within the time left.
+  const nbrs = Hex.neighbors(sim.view().player).filter(n => sim.isDiscovered(n) && sim.kindOf(n))
+  const movable = nbrs.filter(n => sim.canMove(n))
+  assert.ok(movable.length > 0, "a fully-seen ring must not strand you — neighbours stay movable")
+  for (const n of nbrs) {
+    const route = sim.routeTo(n)
+    const affordable = !!route && sim.pathCharge(route) + sim.returnFrom(n) <= sim.energy()
+    assert.equal(sim.canMove(n), affordable, `canMove must equal the reserve rule at ${n[0]},${n[1]}`)
+  }
+})
+
+test("teaching a figure raises it toward its nature and COSTS you an edge; it replays", () => {
+  const pk = "f" + "0123456789abcdef".repeat(3) + "0123456789abcdef".slice(0, 15)
+  const wk = "e" + "9b3d0af2c4715068".repeat(3) + "9b3d0af2c471506"
+  const sim = createSim({ pubkey: pk, worldKey: wk })
+  clearHome(sim, makeRng(3))
+  // out the gate and across the seam onto the neighbour board (same path lessons take)
+  const doorstep = Hex.fromKey(GATE_EDGE.k)
+  assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok)
+  assert.ok(sim.dispatch({ type: "scout", target: GATE_TILE }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: GATE_TILE }).ok)
+  const dir = [GATE_TILE[0] - doorstep[0], GATE_TILE[1] - doorstep[1]]
+  const landing = [GATE_TILE[0] + dir[0], GATE_TILE[1] + dir[1]]
+  assert.ok(sim.dispatch({ type: "scout", target: landing }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: landing }).ok)
+  assert.ok(sim.dispatch({ type: "clearBoard" }).ok)
+  const centre = sim.centreOf(sim.boardHexOf(sim.view().player))
+  const stand = [centre, ...DIRS.map(d => [centre[0] + d.q, centre[1] + d.r])].find(t => sim.canMove(t))
+  assert.ok(sim.dispatch({ type: "move", target: stand }).ok)
+  const npc = sim.npcAt(sim.boardHexOf(sim.view().player))
+  assert.ok(npc, "the board keeps no figure")
+  // a skill you OUTRANK the figure in, with room below its nature cap → teachable
+  const skill = STAT_NAMES.find(s => sim.skillOf(s) > sim.npcSkill(npc, s) && sim.npcSkill(npc, s) < npc.stats[s])
+  assert.ok(skill, "no skill to teach for these keys")
+  // TOTAL edges from level 0 — the one currency teaching MOVES: −1 from your
+  // shape, +1 into the figure's (levels land only when a shape completes). From
+  // zero, so the count stays honest even when a drain digs below the nature base.
+  const edgeSum = p => {
+    let e = p.filled + p.partial
+    for (let l = 0; l < p.level; l++) e += edgesForLevel(l)
+    return e
+  }
+  const yourEdges = () => edgeSum(sim.skillProgress(skill))
+  const theirEdges = () => edgeSum(sim.npcProgress(npc, skill))
+  const youBefore = sim.skillOf(skill)
+  const themBefore = sim.npcSkill(npc, skill)
+  const yoursBefore = yourEdges()
+  const theirsBefore = theirEdges()
+  const e0 = sim.energy()
+  assert.ok(sim.dispatch({ type: "teach", skill }).ok, "teach was refused")
+  assert.ok(Math.abs(yoursBefore - yourEdges() - 1) < 1e-9, "teaching must cost you exactly one edge")
+  assert.ok(Math.abs(theirEdges() - theirsBefore - 1) < 1e-9, "the figure must receive exactly one edge")
+  assert.ok(sim.skillOf(skill) >= youBefore - 1 && sim.skillOf(skill) <= youBefore, "an edge given moves your level by at most one")
+  assert.ok(sim.npcSkill(npc, skill) >= themBefore && sim.npcSkill(npc, skill) <= themBefore + 1, "an edge received moves their level by at most one")
+  assert.ok(sim.energy() < e0, "teaching must spend time")
+  // the figure never rises past its nature; you never sink below zero — and
+  // EVERY give drains exactly one edge, nature included (an empty shape gives up
+  // the level; the base is not an infinite well)
+  let guard = 0
+  let prevEdges = yourEdges()
+  while (sim.dispatch({ type: "teach", skill }).ok && guard++ < 40) {
+    assert.ok(Math.abs(prevEdges - yourEdges() - 1) < 1e-9, "a give must always drain exactly one edge")
+    prevEdges = yourEdges()
+  }
+  assert.ok(sim.npcSkill(npc, skill) <= npc.stats[skill], "taught the figure past its nature")
+  assert.ok(sim.skillOf(skill) >= 0, "taught yourself below zero")
+  // you no longer outrank them → the action is now refused
+  assert.equal(sim.dispatch({ type: "teach", skill }).ok, false, "kept teaching without outranking")
+  // the whole thing replays: hydrate rebuilds the same you-and-them levels
+  const save = JSON.parse(JSON.stringify(sim.serialize()))
+  const back = createSim({ pubkey: pk, worldKey: wk })
+  assert.ok(back.hydrate(save).ok, "hydrate rejected a day with teaching")
+  const npc2 = back.npcAt(back.boardHexOf(back.view().player))
+  assert.equal(back.skillOf(skill), sim.skillOf(skill), "replayed your skill diverged")
+  assert.equal(back.npcSkill(npc2, skill), sim.npcSkill(npc, skill), "replayed the figure's skill diverged")
 })
 
 test("water: visible from the shore, never underfoot", () => {
@@ -614,6 +735,7 @@ test("a chosen angle places the gate and binds the save to its world", () => {
   assert.equal(sim.angle(), a)
   const edge = gateEdgeFor(a)
   sim.dispatch({ type: "clearBoard" }) // clearing home opens the gate wherever it fell
+  sim.dispatch({ type: "rest" }) // …and banks the 60 minutes home just earned for the trip out
   assert.ok(sim.dispatch({ type: "move", target: Hex.fromKey(edge.k) }).ok, "doorstep unreachable")
   assert.ok(sim.dispatch({ type: "scout", target: edge.seam }).ok)
   assert.ok(sim.dispatch({ type: "move", target: edge.seam }).ok, "the gate did not open at the chosen angle")
@@ -676,11 +798,10 @@ test("progressive reload matches the reference hydrate and self-heals via-less s
 // The leap: the DIAGONAL — the tile beyond the edge two adjacent neighbours
 // share — for ONE step's price, over known unwalled ground. Straight through
 // a tile's CENTRE is not a leap; the crack between tiles is the road.
-test("the leap jumps the diagonal for one step's price and retraces elastically", () => {
+test("the leap jumps the diagonal for one step's price, and the return is recorded", () => {
   const sim = createSim()
   const rng = makeRng(7)
-  clearHome(sim, rng)
-  assert.ok(sim.dispatch({ type: "move", target: [0, 0] }).ok) // recentre; trail resets at the entry
+  clearHome(sim, rng) // ends rested at the home centre, trail = [[0,0]]
 
   // in the cleared home: the router takes the diagonal leap, priced as one step
   const land = [DIRS[0].q + DIRS[1].q, DIRS[0].r + DIRS[1].r]
@@ -691,12 +812,12 @@ test("the leap jumps the diagonal for one step's price and retraces elastically"
   assert.ok(sim.dispatch({ type: "move", target: land }).ok)
   assert.equal(sim.view().trail.length, 2, "the trail records the landing only — the flankers are jumped over")
 
-  // leaping back pops the trail like any elastic retrace
-  const back = sim.retraceRoute([0, 0])
-  assert.ok(back, "leap segment refused the retrace")
-  assert.equal(back.length, 2)
+  // leaping back is a normal recorded move — the return APPENDS (no elastic erase)
+  const back = sim.routeTo([0, 0])
+  assert.ok(back, "leap segment refused the route back")
+  assert.equal(back.length, 2, "the way back is a single leap")
   assert.ok(sim.dispatch({ type: "move", target: [0, 0], via: back }).ok)
-  assert.equal(sim.view().trail.length, 1, "the retraced leap did not pop")
+  assert.equal(sim.view().trail.length, 3, "the return leap is recorded onto the trail, not erased")
 
   // collinear through a tile's centre is NOT a leap: 2 straight-out takes 2 steps
   const across = [2 * DIRS[0].q, 2 * DIRS[0].r]
@@ -719,7 +840,7 @@ test("the leap jumps the diagonal for one step's price and retraces elastically"
   assert.ok(sim.dispatch({ type: "scout", target: mid }).ok)
   assert.ok(sim.dispatch({ type: "move", target: mid }).ok)
   assert.ok(sim.dispatch({ type: "scout", target: far }).ok)
-  assert.ok(sim.dispatch({ type: "move", target: at, via: sim.retraceRoute(at) }).ok) // back to the gate tile
+  assert.ok(sim.dispatch({ type: "move", target: at, via: sim.routeTo(at) }).ok) // walk back to the gate tile
   assert.equal(sim.routeTo(far).length, 3, "a collinear seam run must walk, not leap")
 })
 
@@ -762,9 +883,11 @@ test("retracing home stays affordable at full depletion", () => {
   assert.ok(Hex.equals(sim.view().player, sim.view().entry), "did not land back on the entry")
 })
 
-// EXHAUSTION: once no exploring move is left, movement is locked to the way home
-// (only the return-path tiles are walkable); scouting/learning stay free.
-test("exhausted: movement locks to the way home", () => {
+// At DEPLETION the reserve ALONE governs: the way home is always affordable
+// (never-strandable), and canMove is exactly "reach + the way home within the
+// time left" — no position lock, no off-reserve permissions. Scouting/learning
+// keep their own reserve checks.
+test("at depletion the reserve alone governs — the way home holds, the unaffordable is refused", () => {
   const sim = createSim()
   clearHome(sim, makeRng(5))
   const doorstep = Hex.fromKey(GATE_EDGE.k)
@@ -782,28 +905,22 @@ test("exhausted: movement locks to the way home", () => {
     if (!sim.canMove(next)) break
     sim.dispatch({ type: "move", target: next })
   }
-  assert.ok(sim.exhausted(), "the outing never reached exhaustion")
   const v = sim.view()
+  // the way home is always reachable, and its next step is affordable to the minute
   const hp = sim.homePath()
-  assert.ok(hp && hp.length >= 2, "no way home computed at exhaustion")
-  assert.ok(Hex.equals(hp[0], v.player) && Hex.equals(hp[hp.length - 1], v.entry), "the way home must run player → home centre")
-
-  // every movable tile while exhausted sits on that return path
-  const onPath = new Set(hp.map(t => `${t[0]},${t[1]}`))
-  let movable = 0
+  assert.ok(hp && hp.length >= 2 && Hex.equals(hp[hp.length - 1], v.entry), "no way home at depletion")
+  assert.ok(sim.canMove(hp[1]), "the next step home must stay affordable")
+  // every discovered tile in view: canMove agrees EXACTLY with the reserve rule
   for (const d of Hex.range(VIEW_RING)) {
     const h = [v.player[0] + d[0], v.player[1] + d[1]]
-    if (!sim.kindOf(h) || Hex.equals(h, v.player)) continue
-    if (sim.canMove(h)) {
-      movable++
-      assert.ok(onPath.has(`${h[0]},${h[1]}`), `off-path move allowed while exhausted: ${h}`)
-    }
+    if (!sim.kindOf(h) || Hex.equals(h, v.player) || !sim.isDiscovered(h)) continue
+    const route = sim.routeTo(h)
+    const affordable = !!route && sim.pathCharge(route) + sim.returnFrom(h) <= sim.energy()
+    assert.equal(sim.canMove(h), affordable, `canMove must equal the reserve rule at ${h[0]},${h[1]}`)
   }
-  assert.ok(movable > 0, "exhausted with no walkable way home")
-
-  // the next step home is walkable, and the walk lands on the home centre
-  assert.ok(sim.canMove(hp[1]), "the next step home is blocked")
+  // and the walk home actually completes, budget intact
   assert.ok(sim.dispatch({ type: "move", target: v.entry }).ok, "the walk home was rejected")
+  assert.ok(sim.energy() >= 0, "walking home overdrew the budget")
   assert.ok(Hex.equals(sim.view().player, v.entry))
 })
 
@@ -952,6 +1069,386 @@ test("clearBoard reveals the whole board, opens the gate, and replays cleanly", 
   for (const a of log) assert.ok(sim.apply(a).ok)
   sim.endReplay()
   assert.equal(stateSig(sim), before, "clearBoard day diverged on replay")
+})
+
+// ── the gather / craft / build loop ─────────────────────────────────
+
+// a sim whose OWN key grants the asked skill levels — the loop tests need
+// craft/build/gather knowledge without grinding lessons first
+function simWithSkills(min) {
+  for (const c of "0123456789abcdef") {
+    const sim = createSim({ pubkey: c.repeat(64), worldKey: "abcdef01".repeat(8) })
+    if (Object.entries(min).every(([s, l]) => sim.skillOf(s) >= l)) return sim
+  }
+  return null
+}
+
+// a sim (whole world revealed, rested) POSITIONED on a ready `res` tile past
+// the seam — looping seeds until one offers a reachable one. { sim, tile }.
+function gatherReadySim(res) {
+  for (const c of "0123456789abcdef") {
+    const sim = createSim({ pubkey: c.repeat(64), worldKey: "abcdef01".repeat(8) })
+    sim.dispatch({ type: "clearMap" })
+    sim.dispatch({ type: "move", target: [0, 0] })
+    sim.dispatch({ type: "rest" })
+    const tile = gatherOutside(sim, res, new Set())
+    if (tile) return { sim, tile }
+  }
+  return null
+}
+
+// POSITION the player on a ready, reachable tile yielding `res` OUT PAST THE
+// SEAM (home tiles aren't gatherable). Returns the tile — the caller
+// gathers. `byHome` picks the node NEAREST home (lowest reserve) instead of
+// nearest the player, so a gathering run stays close to base. Rests to
+// refill when nothing's in reach. null if it can't.
+function gatherOutside(sim, res, avoid = new Set(), byHome = false) {
+  for (let guard = 0; guard < 60; guard++) {
+    const p = sim.view().player
+    let best = null
+    for (let q = -12; q <= 12; q++)
+      for (let r = -12; r <= 12; r++) {
+        const g = [q, r]
+        const k = q + "," + r
+        if (avoid.has(k) || !sim.isDiscovered(g) || !sim.canMove(g)) continue
+        const bh = sim.boardHexOf(g)
+        if (!bh || (bh[0] === 0 && bh[1] === 0)) continue // must be OUTSIDE the home board
+        const gs = sim.gatherStateAt(g)
+        if (!gs || gs.res !== res) continue // a NODE of this resource (biome × node draw)
+        const d = byHome ? sim.returnFrom(g) : Math.abs(q - p[0]) + Math.abs(r - p[1])
+        if (!best || d < best.d) best = { g, k, d }
+      }
+    if (best) {
+      if (best.d !== 0 && !sim.dispatch({ type: "move", target: best.g }).ok) {
+        avoid.add(best.k)
+        continue
+      }
+      if (sim.gatherInfo()?.ready && sim.canAct({ type: "gather" })) return best.g
+      avoid.add(best.k) // not ready / can't afford here — skip it
+    } else {
+      if (!sim.dispatch({ type: "move", target: [0, 0] }).ok) return null
+      if (!sim.dispatch({ type: "rest" }).ok) return null
+    }
+  }
+  return null
+}
+
+test("walking a tile wears it in — the step cost drops toward a floor", () => {
+  const found = gatherReadySim("plants") // lands the player ON an outside node, past the seam
+  assert.ok(found, "no seed positioned the player outside")
+  const { sim, tile } = found // `tile` is outside + a node → non-centre, walkable
+  assert.ok(sim.dispatch({ type: "restResume" }).ok, "top up the budget in place") // room for local moves
+  // a neighbour to bounce off, so we re-ENTER `tile` (each entry wears it)
+  let N = null
+  for (const d of DIRS) {
+    const n = [tile[0] + d.q, tile[1] + d.r]
+    if (sim.isDiscovered(n) && sim.canMove(n)) {
+      N = n
+      break
+    }
+  }
+  assert.ok(N, "no neighbour to step to")
+
+  const f0 = sim.wearFactor(tile)
+  const c0 = sim.stepCostAt(tile)
+  const w0 = sim.wornAt(tile)
+  // step off and back on repeatedly — each return traversal wears `tile` in
+  for (let i = 0; i < 6; i++) {
+    if (!sim.dispatch({ type: "move", target: N }).ok) break
+    if (!sim.dispatch({ type: "move", target: tile }).ok) break
+  }
+  assert.ok(sim.wornAt(tile) > w0, "the traversals counted")
+  assert.ok(sim.wearFactor(tile) <= f0 + 1e-9, "wear never RAISES the multiplier")
+  assert.ok(sim.stepCostAt(tile) <= c0 + 1e-9, "a worn tile is never more expensive")
+  assert.ok(sim.wearFactor(tile) >= WEAR_FLOOR - 1e-9, "wear never drops below the floor")
+  assert.equal(sim.wearFactor(tile), WEAR_FLOOR, "a well-worn tile bottoms out at the floor")
+})
+
+test("homePathFrom matches homePath from the player's own tile", () => {
+  const found = gatherReadySim("plants") // player is outside, past the seam
+  assert.ok(found, "no seed positioned the player outside")
+  const { sim } = found
+  const p = sim.view().player
+  const a = sim.homePath()
+  const b = sim.homePathFrom(p)
+  assert.ok(a && b, "both ways home exist")
+  assert.deepEqual(b[0], p, "the ghost route starts where the player stands")
+  assert.deepEqual(b[b.length - 1], a[a.length - 1], "…and ends at the same home centre")
+  assert.ok(Math.abs(sim.pathCharge(a) - sim.pathCharge(b)) < 1e-9, "same cost home (ties aside)")
+})
+
+test("every discovered tile adds a minute — the first one already pays", () => {
+  const sim = createSim({ pubkey: "ab".repeat(32), worldKey: "cd".repeat(32) })
+  assert.equal(sim.tilesFound(), 0, "nothing discovered yet")
+  assert.equal(sim.dayBudget(), SEED_MIN, "day one is the seed minute")
+
+  // the FIRST tile you scout already adds a minute (it used to be eaten by the floor)
+  assert.ok(sim.dispatch({ type: "scout", target: [0, -1] }).ok)
+  assert.equal(sim.tilesFound(), 1)
+  assert.equal(sim.nextBudget(), SEED_MIN + 1, "the very first discovered tile pays a minute")
+
+  // clearing HOME lifts the budget by its 60 non-centre tiles
+  assert.ok(sim.dispatch({ type: "clearBoard" }).ok)
+  assert.equal(sim.tilesFound(), ENERGY_START, "home is 60 discoverable tiles")
+  assert.equal(sim.nextBudget(), SEED_MIN + ENERGY_START, "seed + home = 61")
+  assert.equal(sim.dayBudget(), SEED_MIN, "today's window is unchanged — the boost is for tomorrow")
+  assert.ok(sim.dispatch({ type: "rest" }).ok)
+  assert.equal(sim.dayBudget(), SEED_MIN + ENERGY_START, "the next day opens on seed + home")
+
+  // revealing the whole world (home + 60 outside boards) caps at a full day
+  assert.ok(sim.dispatch({ type: "clearMap" }).ok)
+  assert.equal(sim.tilesFound(), 61 * 60, "every board's tiles count now, home included")
+  assert.equal(sim.nextBudget(), FREE_CAP, "a fully-explored world caps the budget at a full day")
+})
+
+test("gather yields, starts the regrow clock, and weighs the pack down", () => {
+  const found = gatherReadySim("plants")
+  assert.ok(found, "no seed offered a reachable plants tile past the seam")
+  const { sim, tile } = found
+  assert.equal(sim.gatherInfo().res, "plants")
+  const costEmpty = sim.stepCostAt(tile) // an outside tile's cost rises with load
+  assert.ok(sim.canAct({ type: "gather" }), "gather should be affordable")
+  assert.ok(sim.dispatch({ type: "gather" }).ok)
+  assert.equal(sim.inventory().plants, 1)
+  assert.ok(sim.loadOf() > 0)
+  assert.ok(!sim.canAct({ type: "gather" }), "the tile must be regrowing now")
+  const costLoaded = sim.stepCostAt(tile)
+  assert.ok(costLoaded > costEmpty, "a loaded pack must slow the step")
+})
+
+test("the home board isn't gatherable, and there is no self-craft", () => {
+  const sim = simWithSkills({ gather: 0 })
+  assert.ok(sim, "no pubkey found")
+  // the home centre yields nothing (it's the board's own tile)…
+  assert.equal(sim.gatherInfo(), null, "the home centre isn't gatherable")
+  // …and neither does an ordinary home tile — home is the minimap, not land
+  assert.ok(sim.dispatch({ type: "clearBoard" }).ok)
+  sim.dispatch({ type: "rest" }) // bank the 60 that clearing home earns, so a step is affordable
+  assert.ok(sim.dispatch({ type: "move", target: [1, 0] }).ok)
+  assert.equal(sim.gatherInfo(), null, "a home tile isn't gatherable either")
+  // no figure at home to commission, and the player never self-crafts
+  assert.deepEqual(sim.craftsNear(), [], "no figure at home")
+  assert.ok(!sim.canAct({ type: "craft", recipe: "basket" }), "no self-craft of a basket")
+  assert.ok(!sim.canAct({ type: "craft", recipe: "axe" }), "no self-craft of an axe")
+  assert.equal(sim.preserve(), 1, "no basket yet, no preservation")
+})
+
+test("a home tile stashes an item and gives it back; the weight lifts", () => {
+  const found = gatherReadySim("plants")
+  assert.ok(found, "no seed offered a reachable plants tile")
+  const { sim } = found
+  assert.ok(sim.dispatch({ type: "gather" }).ok)
+  assert.equal(sim.inventory().plants, 1)
+  assert.ok(!sim.canStash(), "an outside tile is not a storage cell")
+  // carry it home and onto an identity tile (not the centre)
+  assert.ok(sim.dispatch({ type: "move", target: [0, 0] }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: [1, 0] }).ok)
+  assert.ok(sim.canStash(), "a home tile is a storage cell")
+  // stash it: leaves the pack, sits in the cell, weight lifts
+  assert.ok(sim.dispatch({ type: "drop", item: "plants" }).ok)
+  assert.equal(sim.inventory().plants, undefined, "it left the pack")
+  assert.deepEqual(sim.stashHere(), { item: "plants", n: 1 }, "…and sits in the cell")
+  assert.equal(sim.loadOf(), 0, "stashing offloads the weight")
+  // take it back
+  assert.ok(sim.canAct({ type: "take" }))
+  assert.ok(sim.dispatch({ type: "take" }).ok)
+  assert.equal(sim.inventory().plants, 1, "back on your back")
+  assert.equal(sim.stashHere(), null, "the cell is empty again")
+  // the whole thing replays byte-for-byte
+  const before = stateSig(sim)
+  const sim2 = createSim({ pubkey: sim.pubkey(), worldKey: "abcdef01".repeat(8) })
+  assert.ok(
+    sim2.hydrate({
+      app: "anon&mato",
+      schema: 3,
+      world: { angle: sim2.angle(), pubkey: sim.pubkey(), worldKey: "abcdef01".repeat(8), rings: RINGS, rules: RULES },
+      days: sim.history().map(h => ({ day: h.day, actions: h.actions })),
+      today: { day: sim.day(), actions: sim.log().slice() }
+    }).ok
+  )
+  assert.equal(stateSig(sim2), before, "stash diverged on rebuild")
+})
+
+test("dropping out in the world discards the item for good", () => {
+  const found = gatherReadySim("plants")
+  assert.ok(found, "no seed offered a reachable plants tile")
+  const { sim } = found
+  assert.ok(sim.dispatch({ type: "gather" }).ok)
+  assert.equal(sim.inventory().plants, 1)
+  assert.ok(!sim.canStash(), "not on a home tile")
+  assert.ok(sim.dispatch({ type: "drop", item: "plants" }).ok)
+  assert.equal(sim.inventory().plants, undefined, "gone from the pack")
+  assert.deepEqual(sim.stashes(), [], "and stored nowhere — lost for good")
+})
+
+test("a harvest spoils after its shelf life and can't be hoarded", () => {
+  const found = gatherReadySim("plants")
+  assert.ok(found, "no seed offered a reachable plants tile past the seam")
+  const { sim } = found
+  assert.ok(sim.dispatch({ type: "gather" }).ok)
+  // a raw plant keeps 3 days (4320 world-min)
+  const pd = sim.packDetail().find(d => d.k === "plants")
+  assert.ok(pd && pd.spoilsIn > 4200 && pd.spoilsIn <= 4320, "plants shelf ~3 days, got " + pd?.spoilsIn)
+  // rest four days: it must rot away, and its weight goes with it
+  for (let i = 0; i < 4; i++) {
+    assert.ok(sim.dispatch({ type: "move", target: [0, 0] }).ok)
+    assert.ok(sim.dispatch({ type: "rest" }).ok)
+  }
+  assert.equal(sim.inventory().plants, undefined, "the harvest rotted")
+  assert.equal(sim.loadOf(), 0, "the rotted weight is gone too")
+  // and it replays to the same (empty) pack
+  const before = stateSig(sim)
+  const days = sim.history().map(h => ({ day: h.day, actions: h.actions }))
+  const sim2 = createSim({ pubkey: sim.pubkey(), worldKey: "abcdef01".repeat(8) })
+  assert.ok(
+    sim2.hydrate({
+      app: "anon&mato",
+      schema: 3,
+      world: { angle: sim2.angle(), pubkey: sim.pubkey(), worldKey: "abcdef01".repeat(8), rings: RINGS, rules: RULES },
+      days,
+      today: { day: sim.day(), actions: sim.log().slice() }
+    }).ok
+  )
+  assert.equal(stateSig(sim2), before, "spoilage diverged on rebuild")
+  assert.equal(sim2.inventory().plants, undefined, "rotted stays rotted on rebuild")
+})
+
+const eq2 = (a, b) => a[0] === b[0] && a[1] === b[1]
+
+// Gather a camp's materials and raise it near home. Wood keeps, so it's
+// gathered first (over however many days); the perishable plants are
+// gathered LAST from near-home nodes and the camp goes up right there, on a
+// low-reserve tile with the pack still fresh. { ok, reason } — assert-free.
+function tryBuildCamp(sim) {
+  sim.dispatch({ type: "clearMap" })
+  sim.dispatch({ type: "move", target: [0, 0] })
+  sim.dispatch({ type: "rest" })
+  const avoid = new Set()
+  for (let i = 0; i < 3; i++) {
+    const t = gatherOutside(sim, "wood", avoid, true) // nearest home
+    if (!t) return { ok: false, reason: `only got ${i} wood` }
+    if (!sim.dispatch({ type: "gather" }).ok) return { ok: false, reason: "gather wood failed" }
+    avoid.add(t.join())
+  }
+  // back to a full tank so the plants are gathered fresh and near home
+  sim.dispatch({ type: "move", target: [0, 0] })
+  sim.dispatch({ type: "rest" })
+  for (let i = 0; i < 2; i++) {
+    const t = gatherOutside(sim, "plants", avoid, true) // nearest home
+    if (!t) return { ok: false, reason: `only got ${i} plants` }
+    if (!sim.dispatch({ type: "gather" }).ok) return { ok: false, reason: "gather plants failed" }
+    avoid.add(t.join())
+  }
+  // home for a FULL tank (the pack keeps), then walk to the nearest-reserve
+  // buildable tile and raise it — with a fresh tank the loaded trek + build
+  // fit one day
+  sim.dispatch({ type: "move", target: [0, 0] })
+  sim.dispatch({ type: "rest" })
+  let best = null
+  for (let q = -12; q <= 12; q++)
+    for (let r = -12; r <= 12; r++) {
+      const g = [q, r]
+      if (!sim.isDiscovered(g) || sim.kindOf(g) !== "in") continue
+      const bh = sim.boardHexOf(g)
+      if (!bh || (bh[0] === 0 && bh[1] === 0)) continue
+      if (sim.typeNameAt(g) === "water" || !sim.canMove(g)) continue
+      const rf = sim.returnFrom(g)
+      if (!best || rf < best.rf) best = { g, rf }
+    }
+  if (best && !eq2(sim.view().player, best.g)) sim.dispatch({ type: "move", target: best.g })
+  if (sim.canAct({ type: "build", what: "camp" })) {
+    sim.dispatch({ type: "build", what: "camp" })
+    return { ok: true }
+  }
+  return { ok: false, reason: `unaffordable (e ${sim.energy().toFixed(0)}, pack ${JSON.stringify(sim.inventory())})` }
+}
+
+test("a built camp is a real resting place and eases the reserve", () => {
+  // a forest-rich world with buildable land close to home, so a first camp
+  // is affordable to raise (wood + plant nodes near the seam)
+  const WK = "8ff5e739".repeat(8)
+  let sim = null
+  let reason = "no qualifying seed"
+  for (const c of "0123456789abcdef") {
+    const s = createSim({ pubkey: c.repeat(64), worldKey: WK })
+    if (s.skillOf("build") < 2 || s.skillOf("gather") < 5) continue
+    // pre-screen: enough wood + plant NODES near home to source a camp
+    let wood = 0
+    let plants = 0
+    for (let q = -11; q <= 11; q++)
+      for (let r = -11; r <= 11; r++) {
+        const L = Math.max(Math.abs(q), Math.abs(r), Math.abs(-q - r))
+        if (L < 6 || L > 11) continue // just past the seam, near home
+        const gs = s.gatherStateAt([q, r])
+        if (!gs) continue
+        if (gs.res === "wood") wood++
+        else if (gs.res === "plants") plants++
+      }
+    if (wood < 3 || plants < 2) {
+      reason = "too few nodes near home"
+      continue
+    }
+    const r = tryBuildCamp(s)
+    if (r.ok) {
+      sim = s
+      break
+    }
+    reason = r.reason
+  }
+  assert.ok(sim, "no seed let a camp be built past the seam: " + reason)
+
+  assert.equal(sim.camps().length, 1)
+  assert.ok(sim.atRestSpot(), "the camp counts as a resting place")
+  const day0 = sim.day()
+  assert.ok(sim.dispatch({ type: "rest" }).ok, "the day can end at the camp")
+  assert.equal(sim.day(), day0 + 1)
+  assert.ok(sim.dayBudget() > ENERGY_START, "reaching past the seam grew the budget")
+  assert.equal(sim.energy(), sim.dayBudget(), "rested to the full (grown) tank")
+  // the whole thing replays to the same world, camp and all
+  const before = stateSig(sim)
+  const sim2 = createSim({ pubkey: sim.pubkey(), worldKey: WK })
+  const r = sim2.hydrate({
+    app: "anon&mato",
+    schema: 3,
+    world: { angle: sim2.angle(), pubkey: sim.pubkey(), worldKey: WK, rings: RINGS, rules: RULES },
+    days: sim.history().map(h => ({ day: h.day, actions: h.actions })),
+    today: { day: sim.day(), actions: sim.log().slice() }
+  })
+  assert.ok(r.ok, "camp save must hydrate: " + (r.reason || ""))
+  assert.equal(stateSig(sim2), before, "camp world diverged on rebuild")
+  assert.equal(sim2.camps().length, 1, "the camp must survive the rebuild")
+})
+
+test("clearMap reveals every board and seam, and replays cleanly", () => {
+  const sim = createSim()
+  assert.ok(sim.dispatch({ type: "clearMap" }).ok)
+  const parent = sim.parentOf().tile
+  // every board of the parent field: fully discovered, known at parent scale
+  const len = ([q, r]) => Math.max(Math.abs(q), Math.abs(r), Math.abs(-q - r))
+  let boards = 0
+  for (let q = -RINGS; q <= RINGS; q++)
+    for (let r = -RINGS; r <= RINGS; r++) {
+      if (len([q, r]) > RINGS) continue
+      boards++
+      assert.ok(parent.discovered.has(q + "," + r), `board ${q},${r} unknown at parent scale`)
+      const node = parent.children[q + "," + r]
+      assert.equal(node?.discovered.size, BOARD_TILES, `board ${q},${r} not fully discovered`)
+    }
+  assert.equal(boards, BOARD_TILES)
+  assert.equal(sim.view().tile.gateOpen, true) // full discovery still opens gates
+  // the seams between the boards are known too — check one for certain
+  let seam = null
+  for (let q = -SEAM_RING; q <= SEAM_RING && !seam; q++)
+    for (let r = -SEAM_RING; r <= SEAM_RING && !seam; r++)
+      if (len([q, r]) === SEAM_RING && isSeamHex([q, r])) seam = [q, r]
+  assert.ok(seam, "no seam hex found to probe")
+  assert.ok(parent.seamDiscovered.has(seam[0] + "," + seam[1]), "seam not discovered")
+  const before = stateSig(sim)
+  const log = sim.log().slice()
+  sim.beginReplay()
+  for (const a of log) assert.ok(sim.apply(a).ok)
+  sim.endReplay()
+  assert.equal(stateSig(sim), before, "clearMap day diverged on replay")
 })
 
 // ── headlessness ─────────────────────────────────────

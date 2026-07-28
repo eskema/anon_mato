@@ -33,12 +33,18 @@ speculative abstractions for unbuilt features.
   player gains abilities over time and sets up "patterns" within the loop;
   patterns grow or collapse; on collapse they revert to the base pattern and
   the player goes back to tweak them.
-- **Energy IS time (minutes).** Traversal spends time. Start with a very
-  reduced budget (60 min, grows later). Home is where time/energy resets, but
-  it is NOT timeless: every step/scout there costs a flat minute (see below),
-  so clearing home spans several days.
-- **Day cycle.** Awake 06:00–22:00, must sleep at 22:00 (wakes 06:00). The
-  player cannot leave home during sleep hours.
+- **Energy IS time (minutes).** Traversal spends time. The daily budget IS how
+  many tiles you've discovered (one minute each), floored at a tiny day-one
+  survey (`SEED_MIN`) and capped at a full day (`FREE_CAP` = 1440). Home is
+  where time/energy resets, but it is NOT timeless: every step/scout there costs
+  a flat minute (see below), so clearing home spans several days — and clearing
+  it (its 60 non-centre tiles) is exactly what earns the classic 60-minute
+  budget you carry out the gate. Discoveries bank for the NEXT day.
+- **Day cycle.** You wake at 00:00 and are awake for exactly your budget of
+  minutes, then sleep the rest — so early on you sleep almost the whole day
+  (budget 1 → awake 00:00–00:01, asleep till midnight) and the waking window
+  grows on its own as the budget does. No fixed sleep hours; sleep unlocks
+  itself.
 - **Time vs tiles are SEPARATE axes.** Time is one continuous clock; a
   timestamp is a moment, not a place. Tiles are space — a fractal nested hex
   world (grids inside tiles inside tiles). The one-directional link: the time
@@ -99,10 +105,13 @@ speculative abstractions for unbuilt features.
   tile becomes discovered as bookkeeping), the trail is never translated or
   truncated, and retraces work across any number of boards natively. The
   camera is pure presentation: board-centred while on a board, player-centred
-  on the seam (the classic inversion), panning with the walking ghost.
-  Rendering is one global pass — every discovered tile in the viewport draws,
-  culled at ~4 board-pitches around the camera or ~2 screenfuls, whichever is
-  smaller. The old frame model (edge tiles → parked slides → frame-follows-
+  on the seam (the classic inversion). A move glides the camera ONCE toward the
+  DESTINATION board (averaging the whole route) instead of panning tile-by-tile
+  with the ghost, so a winding path never bumps it fixed→follow→fixed; within one
+  board it holds still and the cube walks across. Rendering is one global pass —
+  every discovered tile in the viewport draws, culled at ~4 board-pitches around
+  the camera (anchor read back from the live cam offset, so the ground tracks the
+  viewport even mid-glide) or ~2 screenfuls, whichever is smaller. The old frame model (edge tiles → parked slides → frame-follows-
   the-seam) is fully retired; go-up/exit actions are retired with it until
   the parent view is earned.
 - **Walls** (generalised 2026-07-03): any side of any hex can be walled —
@@ -215,13 +224,94 @@ speculative abstractions for unbuilt features.
 
 ## Timed actions
 
-Actions aren't instant — you wait out their cost in real time
-(`TIME_SCALE = 1000` ms per minute, fast-forwarded by `WAIT_SPEED = 60` for
-now; a future upgrade shrinks the real wait while the simulated cost stays).
-A move walks step-by-step with the cube advancing live; a scout waits in
-place. Input locks while waiting. The wait is presentation: the sim applies
-the action atomically when the wait completes (abandoning mid-wait spends
+Actions aren't instant. A scout / gather / craft / build waits IN PLACE for its
+charge (`TIME_SCALE = 1000` ms per simulated minute, fast-forwarded by
+`WAIT_SPEED = 60` for now; a future upgrade shrinks the real wait while the
+simulated cost stays). Input locks while waiting; the wait is presentation — the
+sim applies the action atomically on completion (abandoning mid-wait spends
 nothing).
+
+A MOVE animates instead of waiting — the cube WALKS the route, paced by the
+tiles' CHARGE (reworked 2026-07-17): `MOVE_MS_PER_CHARGE` ms per charge-minute, so
+costly ground walks slower than easy ground, floored at `MOVE_MS_MIN` (a brisk
+single step) and capped at `MOVE_MS_MAX` (a faraway route stays WATCHABLE — you see
+the whole walk — but never crawls). A board SHIFT adds a beat scaled by how far the
+camera slides, so a seam crossing doesn't whip past at the step's pace. The cube
+glides continuously tile-to-tile on an asymmetric-quad ease — SHORT in, LONG out
+(quick off the mark, soft landing, `MOVE_EASE_IN`); the camera borrows the move's
+DURATION but its own quad (longer out) and aims at the destination, a lead-and-
+follow rather than one rigid motion. All the constants live in grid.js/render.js
+and are the tuning knobs; the shared `draw.js` holds the `easeSplit` curve both use.
+
+## Gather / craft / build (v1 loop, 2026-07-13)
+
+The works layer, all through the same day/reserve economy:
+
+- **Gather** — an action on a forage NODE underfoot, OUT PAST THE SEAM. Not
+  every biome tile yields: whether a tile is a node for its resource is a
+  DETERMINISTIC draw from the world key + coord (`NODE_DENSITY` per resource
+  — plants 0.55 … metal 0.09), so the same world always forages the same and
+  it replays. Biome frequency × node density is the scarcity: some boards
+  are bare of a resource by design, and rare finds (a metal node) are
+  landmarks worth a camp. The HOME board is NOT gatherable at all — its
+  tiles are the identity/minimap, not land. A node gives one unit of its
+  `BIOME_YIELD` resource; the map draws a dot on a ready node and a filling
+  regrow ring on one you've depleted. That FORAGE MAP is a scout perk: node
+  markers stay hidden until scout skill reaches `FORAGE_EYE` (the forager's
+  eye) — below it you learn a tile's yield only by standing on it (the nodes
+  are derivable in theory, but the game earns the map). Display-only, so the
+  gate never touches replay; the dev sandbox (world.html) is omniscient.
+  Costs minutes per resource (`RESOURCES[r].min`), eased by the gather skill
+  toward half at 15; an axe halves wood. Each tile carries a REGROW clock
+  (`RESOURCES[r].regrow`, in world-minutes — 1440/day, sleep included):
+  plants return within the day, metal is a yearly pilgrimage. Affordability
+  keeps the reserve invariant against the HEAVIER pack — the way home is
+  re-priced at the post-pickup load, so a gather can never strand you.
+- **Spoilage & wear** — the pack is dated INSTANCES, not counts. A raw
+  harvest has a SHELF life (`RESOURCES[r].shelf`, world-minutes): food rots
+  and is lost past it (fish 1 day, plants 3, eggs 4; wood/rock/metal keep).
+  Spoilage is irreversible — expired instances are pruned at every action
+  boundary, so a later preserver can't un-rot food. Tools WEAR: the axe has
+  `uses` (12 wood-cuts) and breaks when spent. `worldMin` is monotonic
+  (a rest jumps the day 1440 > any ≤60 refill), so both clocks replay
+  deterministically. You can't hoard — you use it or lose it.
+- **Carry** — items weigh (`RESOURCES/RECIPES[].weight`); capacity is
+  `CARRY_BASE + gather level + baskets`. The LOAD multiplies every step
+  linearly up to 2× at a full pack — through the exact reserve, weight
+  literally shortens reach. Full pack = no more picking up (hard cap).
+- **Craft** — a SERVICE the NPCs sell, not a self-skill. Each recipe belongs
+  to a `biome`; only a figure NATIVE to that land (their board's main type)
+  can make it, and only at `level` in that land's skill. You carry the raw
+  materials to them (at their board CENTRE — within a step, like teaching)
+  and they spend the minutes and hand the item back; consumption spends
+  OLDEST fresh stock first, and the product (lighter than its inputs) never
+  breaks the reserve. Crude tier: the plains weaver's basket (5 plants → +4
+  carry AND `keeps` ×1.5 on perishable shelf, the first storage tech; later
+  builds preserve far longer), the forest wright's axe (2 wood + 1 rock →
+  halves wood gathering, wears out). Crafting is deliberately OUTBOUND and
+  camp-gated: board centres sit ~10 tiles past the seam, so reaching a
+  specialist to transact means anchoring the reserve with a camp nearby —
+  a mid-game expedition, not a home convenience. No resident home crafter;
+  the player never self-crafts (no `craft` practice).
+- **Build** — a structure on the tile underfoot: materials on the back,
+  build level, minutes. The CAMP (`BUILDS.camp`) joins `restSpots`: the
+  reserve anchors to it immediately and the day can END there (rest works
+  at any resting place, not just home).
+- **Drop / stash / take** — you can `drop` any item onto the tile underfoot,
+  instantly and free. On a HOME tile that STASHES it (recoverable by
+  `take`), turning the identity/minimap tiles into storage cells — ONE item
+  type per cell. Anywhere else, a drop DISCARDS the item for good
+  (non-recoverable). The stash lifts weight off your back for the next
+  expedition; stashed food still spoils (a plain cell keeps time — a carried
+  basket's preserve factor does NOT reach it; a preserving STORE is future
+  tech). Stashed cells show a small ring on the home board.
+- Practice: gather/craft/build each train their own skill (the same
+  doubling-threshold counters as walking and scouting).
+- State (`inventory` as instance arrays, per-tile `gatheredAt`, camps) is
+  log-derived; the save FORMAT is unchanged (still just the action log).
+  RULES is now 10: a log containing gather/craft/build replays to different
+  inventory and step costs than before, so those saves must reset — but a
+  pure-exploration log has an empty pack and replays identically.
 
 ## Architecture (post-rewrite)
 
@@ -274,17 +364,14 @@ nothing).
   (all six interior radial lines, like home's centre). Figures rest there
   unless tasked; the player stacks BELOW the figure so both show. You inspect
   a figure only while standing ON its centre.
-- **The ring is a split**: the 3 LEFT cells are YOU (self actions), the 3
-  RIGHT cells are whatever you're inspecting — a figure (learn / their
-  skills) if you're on its centre, otherwise the LAND under you (its facts:
-  biome, elevation, costs, yield; gather/work actions come with resources).
-  Home's own centre stays self-only.
+- **The ring is a split**: the LEFT cells are YOU (self actions), the RIGHT
+  side is whatever you're inspecting — for now just the LAND under you (its
+  facts: biome, elevation, costs, yield). Home's own centre stays self-only.
+  Skills and their lessons no longer live in the menu — they're on the clock
+  ring (see the Skills section).
 - **Auto-open**: the menu opens itself on arriving at the home centre or a
   figure's centre (a context transition); dismissing closes it until you
   move to another such spot. Clicking the player toggles it anywhere.
-- **Stats**: `your skills` / `their skills` badges toggle a skills card
-  (8 bars, level fill + a nature-cap tick) top-left. `playerStats()` /
-  `npcSkill` feed it; the figure's card notes its home biome.
 
 ## UI conventions
 
@@ -361,13 +448,32 @@ nothing).
   asymmetry is the design — the PLAYER caps at 15 (perseverance always
   pays; the key sets the head start and the pace via `lessonXp`, never the
   destination), an NPC caps at its OWN nature (experts keep permanent
-  value; teaching them toward their cap is v2). The `learn` action: 10
-  minutes beside a teacher who currently outranks you; xp clamps at the
-  teacher's level — nobody teaches past what they know. Learned progress is
-  day-snapshotted state that replays from the log (the save stays log-only;
-  your skills are literally your biography). First stat that bites: scout
-  level discounts scout cost (half price at 15) — RULES 4. Lessons surface
-  on the radial menu beside a figure ("learn scout 3→4").
+  value). The `learn` action: 10 minutes beside a teacher who currently
+  outranks you; xp clamps at the teacher's level — nobody teaches past what
+  they know. Learned progress is day-snapshotted state that replays from the
+  log (the save stays log-only; your skills are literally your biography).
+  First stat that bites: scout level discounts scout cost (half price at 15).
+- **Teaching (RULES 6, 2026-07-10; edge-for-edge since RULES 25, 2026-07-21)**:
+  the mirror of a lesson, and the reason teaching is *selective*. `teach` a
+  figure a skill you currently OUTRANK it in (room below its nature cap): **one
+  edge moves from your shape to theirs**. Yours drains by one — `given[]`
+  counts edges out of the same shape lessons fill, and giving with an empty
+  shape degrades the level itself (the previous, smaller polygon comes back
+  nearly complete). Progress is ONE total-edge currency counted from level 0:
+  nature just PRE-FILLS your base levels' edges, and the drain digs into them
+  like anything else — the base is not an infinite well; you can teach yourself
+  below your nature. Theirs fills by one — `taught[boardKey][skill]` counts
+  edges in, and the figure climbs its own shape from its base
+  (`npcProgress`), completing a level only when the shape closes, never past
+  its nature. Progress on both sides is one net-edge currency; `given` and
+  `taught` are day-snapshotted and log-derived like `learned`. You literally
+  give up your own edge to lift theirs — so who you teach matters.
+- **Skills + lessons live on the clock ring (2026-07-10)**: the 8 skills sit
+  at 45° inside the sun dial while the menu is open — glyph outward, number(s)
+  inward. Facing a figure: yours and theirs with a learn/teach arrow (← take a
+  lesson / → give one), equal → one number. A ← slot (green) or → slot (amber)
+  is clickable in place and previews its 10-min cost on the ring. No more
+  learn/teach menu folders.
 - **Place is nature — for the stationary (2026-07-07)**: an NPC's home
   biome raises its innate (and so its cap) by +3 in that biome's skill.
   Eight biomes ↔ eight skills, a bijection — every skill has a home terrain
@@ -382,11 +488,143 @@ nothing).
   (puppets of the world: anyone can recompute your world's people).
   Constrained to its board; placed at the centre for now; styling TBD
   (drawn as a smaller, quieter cube once its tile is discovered). **Stats
-  read any key by one rule** (`statsOf`): 64 nibbles → 8 skills, each the
-  rounded average of its 8-nibble slice (0..15) — the player's npub reads
-  the same way (`playerStats()`). Skill names are placeholders (scout,
-  travel, gather, build, craft, trade, tend, lore) — the system is the
-  point; mechanics hook in later.
+  read any key by one rule** (`statsOf`): 64 nibbles → 12 skills, each the
+  rounded average of its contiguous slice (~5–6 nibbles, 0..15) — the player's
+  npub reads the same way (`playerStats()`). The 12 skills and their grouping are
+  canon now — see "Skills: the three pillars" (the 4 MIND skills still ride
+  placeholder names/icons; mechanics hook in later).
+
+## Skills: the three pillars (planned 2026-07-17)
+
+The 12 skills ARE the game's verbs, and they divide equally into THREE PILLARS of
+four — the organizing spine everything else hangs off. A skill is a DOMAIN (a
+family of actions + modifiers), never a single button; leveling a skill improves
+its verb, so progression and action are one axis.
+
+- **TIME · the wheel** — `scout · travel · trade · farm`. Reach, flow, cycles, the
+  long game: things that unfold over DURATION — grow the known world, cover
+  distance, circulate goods, wait on a harvest. The cut that proves the split:
+  **farm** (patience, seasons) vs gather/hunt (the immediate take).
+- **SPACE · fire** — `gather · craft · hunt · cook`. Engage matter with fire: TAKE
+  it (gather/hunt) and TRANSFORM it (craft/cook). The immediate physical world —
+  and **cook belongs here**: cooking is literally fire on matter (raw → meal).
+- **MIND · word** — `heal · lore · dream · build`. The self, its culture, and its
+  DESIGN: KNOW (lore), MEND (heal), ENVISION (dream), and MAKE-REAL your patterns
+  (build — "the patterns pillar" is the mind imprinting the world). The interior +
+  intent.
+
+(2026-07-17 revision: `cook` and `build` swapped pillars — cook → SPACE/fire,
+build → MIND/design. TIME's four are unchanged.)
+
+What falls out of the taxonomy (why it's more than tidy):
+
+- **The wheel groups each pillar into a contiguous ARC** — TIME across the top,
+  SPACE down the right, MIND down the left. `STAT_NAMES` is the wheel order
+  clockwise from the top (`scout` at 12 o'clock), so in the linear list TIME
+  STRADDLES the start (`scout·travel … farm·trade`). The year still turns through
+  the pillars in ~4-month macro-seasons, with TIME wrapping the new-year turn. The
+  constellation wheel already built IS the TIME pillar's emblem; `lore` living in
+  MIND is why it gates the sky/calendar reveal.
+- **A currency per pillar** (candidate): SPACE → matter & sustenance (materials +
+  food→energy via cook), MIND → knowledge, health & design (heal/lore/build),
+  TIME → reach/circulation. A three-resource economy that emerges from the
+  structure instead of being bolted on.
+- **Skills can be MODIFIERS, not only verbs** — `lore` governs (sleep quality,
+  calendar clarity, unlocking); `travel` just discounts movement. This is what
+  keeps "12 verbs" from meaning "12 equal loops to invent."
+
+Open / revisions:
+
+- **The biome bijection loosens.** 8 biomes but 12 skills → only SOME skills are
+  place-born; the MIND four are nearly placeless (learned from people/knowledge,
+  not terrain). "8 biomes ↔ 8 skills" becomes "some skills are place-born, others
+  aren't" — arguably better.
+- **"Pillar" is overloaded** — DESIGN already calls building "the patterns pillar";
+  these three (TIME/SPACE/MIND) are skill CATEGORIES. Reconcile the word.
+- The MIND four (`cook·hunt-food·heal·dream`) still ride PLACEHOLDER names/icons;
+  `dream` is the natural home of the routines below (dreaming = programming
+  tomorrow's loop). Sequence the build: harden the verbs that already have loops
+  (scout/gather/move/craft/build), then `lore`'s governing role (cheap, ties the
+  calendar together), then flesh the self-verbs around the sleep screen.
+- `lib/guide.js` holds an EARLIER, different grouping (a "Time" of cook/hunt/heal/
+  tend, a "sail" skill) — a scratch exploration, not this canon; reconcile or drop.
+
+## Multi-POV days & routines (planned 2026-07-17)
+
+Every board is already a person (childkey = identity + derived terrain + stats).
+This turns that latent fact into play: you can INHABIT any figure and live its day
+the same way you live yours — the old delegation idea, but as CONTROL, not a
+command UI. The whole day-loop (energy → move/scout/gather → reserve home → sleep,
+event-sourced) is reused verbatim, pointed at a different actor. The player is just
+actor #0.
+
+- **Shared vs per-actor.** The MAP is one shared truth: collective discovery
+  (anyone reveals a tile, it's revealed for all), walls, wear, regrow clocks,
+  built things — and the DAY plus its 00:00→budget hours are global. PER-ACTOR:
+  energy (each has its OWN budget curve), position/trail, pack, skills/learned,
+  home (its board centre) + the reserve to it, and its own per-day action log.
+  Shared fog is what collapses the cost — no per-actor knowledge to multiply.
+- **Same day, many POVs.** You act your own day AND switch POV to drive others
+  within that SAME day. The tractable authoring model: each POV is played against
+  the MORNING (day-start) world — no live cross-effect between people mid-day.
+  Interactions resolve at BANK: sleep replays everyone's logs INTERLEAVED by
+  in-day time (a person's clock = its own energy spent) onto the shared world, in
+  order. Conflicts (B gathers a tile A already took) simply FAIL — the sim already
+  refuses illegal actions, so the "merge" is a SORT, not merge code. Trade
+  accepted: no live coordination within a day (you author each blind to the
+  others; the bank may invalidate a few actions — grey-as-broken, interesting not
+  broken). Live co-presence (handoffs on the commons) is a later, harder mode.
+- **Routines = program by demonstration (the loop).** Record a person's day; that
+  log becomes a TEMPLATE. "Set to loop" is a LOGGED assignment ("B runs routine R
+  from day N"); the daily execution DERIVES — re-applied each day-advance, never
+  stored (JOBS derive, never log). Change the loop anytime = a new logged
+  assignment, effective from that day forward. The save stays tiny: you store "she
+  builds boats," not a thousand banked boat-days; replay recomputes.
+  - STATIONARY production (build/craft at a fixed spot from a stockpile) replays
+    LITERALLY and perfectly — the safe first target (the boat-builder).
+  - FORAGING (gather things that regrow elsewhere) DRIFTS under literal replay —
+    the ONLY place a tiny CLOSED verb set (gather-nearest, scout-frontier,
+    go-home-sleep) is warranted, added reactively when drift actually bites.
+    Never conditionals/branches: the reserve invariant makes a loop SAFE BY
+    CONSTRUCTION (illegal refused; worst case it stops and sleeps safe), so the
+    "language" needs no error handling. That safety IS the whole anti-monster.
+- **Confinement → commons.** Reuse the existing gate (open-on-clear) with the
+  auto-open WITHHELD: a person is boxed in its board until a TECH opens its seam.
+  Converging on a shared COMMONS board is where the multi-person mechanics finally
+  pay (teach/trade/build together). Matches the arc's "grind to full freedom / the
+  rim opens" — isolation early keeps it simple; the exit-tech is the payoff.
+- **Anti-monster UI (this is progression).** One FLAT routine per person, on/off —
+  no library, no nesting, no branches. Program by DOING (inhabit + record), not an
+  editor. Surface OUTCOMES (the person's day-log/trail you already render), not
+  code. A gateable INSTRUMENT unlocked in time, absent day 1 (UI = progression).
+
+### Implementation seam (actor record + the multi-actor tick)
+
+- **Actor record** — bundle today's player singletons into one struct, held N-up
+  with an ACTIVE pointer: `energy` (+ budget curve), the level `stack`
+  (position/trail/entry per level), `learned`/skills, pack/inventory, `log`,
+  `dayStart`, and `restSpots` (= this actor's home). Rendering, camera, reserve
+  and input all read the ACTIVE actor; a POV switch is a pointer swap.
+- **Stays global** — the world tree (`discovered`, walls, wear, `types`),
+  `gatheredAt` regrow clocks, `day`, `worldStamp`. Discovery journaling keeps
+  writing to the shared tree; it just has several authors now.
+- **`sleep()` → `advanceDay()`** — the one new engine piece (the idea box's
+  "sleep-tick executor", realized): gather each actor's day (hand-driven logs +
+  derived routine runs), apply them to the shared world INTERLEAVED by in-day
+  time, refuse conflicts, accrue results, refill each actor's energy on its own
+  curve, roll `day`. Deterministic → replay re-runs it across all days;
+  day-editing cascades as today.
+- **Save shape** grows from `days:[{day, actions}]` to per-actor: banked days
+  carry each hand-driven actor's log; looped people carry only their ASSIGNMENT
+  (routine + fromDay), execution re-derived on replay. `RULES` bumps.
+- **Build order** (each shippable): 1 control handoff (inhabit + play a day, shared
+  fog, own energy/home) — the fun test; 2 save-a-day-as-routine + replay on demand;
+  3 auto-run routines in `advanceDay()`; 4 confinement + seam-tech + commons;
+  5 parametric verbs, reactively.
+
+Open: whether teaching/trading need LIVE co-presence (forces the harder interleave)
+or can also resolve at bank; how a routine is EDITED (re-record whole vs splice);
+the budget-curve source per actor (stat-derived vs flat).
 
 ## Idea box (unsorted — thrown in raw, to make sense of later)
 
@@ -446,6 +684,26 @@ nothing).
   share is interior, not surface) and the centre stays visually clean.
   Also unsettled: what vanity-grinding buys under reading order (leading
   chars = the board's TOP edge now, not the centre ring).
+  **Settled direction (2026-07-11): centres are NOT land.** A board is 60
+  land tiles + 1 centre; the centre is the BOARD's own tile — its type and
+  info are the board's, not a derived land type, so `landAt` returns null
+  there (no land block on hover, no land card standing on one). HOME tiles
+  are not land either (2026-07-12): home is the identity/minimap — each
+  tile refers to a whole board — so `landAt` is null across the home board
+  too. Hovering a centre (or the home tile referring to it) shows the
+  BOARD's overview instead: the figure's name (placeholder derivation:
+  three syllables off the pubkey) + npub, the board's main land type, and
+  its discovery percentage — the full set only once that board's centre is
+  discovered; before that just the percentage + coords. Standing on a home
+  tile whose board-centre is known adds a TELEPORT item to the menu — for
+  now a routed move (walk pricing; instant-teleport cost model TBD). The key's
+  middle four chars stay a reserved extra layer to tweak the map (use TBD).
+  Candidate future rule (NOT implemented): the centre only becomes
+  available once the 60 tiles around it are cleared. **Centres price at
+  BASE (RULES 9, 2026-07-12)**: stepping onto (or scouting) a centre skips
+  the biome and height multipliers — one plain step — and a centre is never
+  impassable, so a water-derived centre can't lock a board shut. Paint
+  still derives from the biome (a follow-up if it ever bothers).
 
 - **The 360-wheel is one wheel**: 360 days ↔ 360 degrees ↔ 360 hues. The
   angle, the calendar and the colour wheel are the same circle. Anything
@@ -503,6 +761,21 @@ nothing).
   water base so shores ring it. The renderer paints biomes for all
   discovered ground INCLUDING home — the hex-digit char view is retired
   (nibbleAt stays in the sim as identity data).
+- **Height prices movement EXPONENTIALLY + practice (RULES 8, 2026-07-11)**:
+  on top of the biome multiplier, a step pays base^(elevation − 4) — sea
+  level 1×, and untrained (ELEV_STEP 1.35) the raw peak (15) is a ~27×
+  wall: you cannot simply stroll up high ground. TRAVEL flattens the curve
+  — the base eases linearly to ELEV_STEP_FIT (1.1) at travel 15, where the
+  same peak costs ~2.9×. Beef up first, then climb. **Practice — skills
+  grow by DOING**: every step counts toward travel, every scout toward
+  scout (PRACTICE_SKILL maps action kind → skill); level k of practice
+  lands at PRACTICE_BASE·(2^k − 1) actions (thresholds double — the early
+  levels come quick, the last take an age). Practice levels add into
+  skillOf alongside innate + lessons − taught, capped at 15; counts live in
+  `practiced` (log-derived, in snapshots, replay-safe; priced-then-counted
+  so a bump mid-walk only ever CHEAPENS later steps). Beach still pins to
+  elevation 4; water still reads deepness (priced by the same exponent, for
+  boats later); seams and safe-board interiors stay flat.
 - The angle-picker setup flow is LIVE again (2026-07-04): no save → the
   picker runs first and its angle seeds the world (`createSim({angle})`,
   per-instance gate); a save carries its angle and boots straight in; the

@@ -60,6 +60,12 @@
       padding: 8px 12px;
       border-radius: 8px;
     }
+    #legend label {
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
     canvas {
       display: block;
       width: 100vw;
@@ -76,12 +82,11 @@
 <body>
   <div id="ui">
     <div style="display: flex; gap: 10px; align-items: center">
-      <button id="rnd">randomize world key</button>
-      <label><input type="checkbox" id="raw" /> raw heights</label>
+      <button id="rnd">randomize world</button>
     </div>
-    <label>water &lt; <span id="wlv">4</span> <input id="wl" type="range" min="1" max="9" step="1" value="4" /></label>
-    <label>smoothing <span id="spv">1</span> <input id="sp" type="range" min="0" max="3" step="1" value="1" /></label>
-    <label>detail <span id="dtv">40</span>% <input id="dt" type="range" min="0" max="100" step="5" value="40" /></label>
+    <div id="hint" style="font-weight: 400; font-size: 13px; opacity: 0.8; max-width: 340px">
+      click a tile to stand there and shade its reach
+    </div>
     <div id="key"></div>
   </div>
   <div id="legend"></div>
