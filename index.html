@@ -4,11 +4,33 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>anon&amp;mato</title>
+  <!-- the face is fetched at parse time, before anything asks for it: nothing
+       should ever be typed twice, once in a fallback and once for real -->
+  <link rel="preload" href="./fonts/SourceCodePro-Semibold.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="./fonts/SourceCodePro-Regular.woff2" as="font" type="font/woff2" crossorigin />
   <style>
+    /* THE GAME FACE — Source Code Pro, shipped with the game (fonts/, two
+       weights). Everything the game draws is typed in it, canvas included, so
+       the boxes and their columns line up by the letterform rather than by any
+       measuring we do. `swap` so the first frame is never blank; main.js
+       redraws once the real face lands. */
+    @font-face {
+      font-family: "Source Code Pro";
+      src: url("./fonts/SourceCodePro-Regular.woff2") format("woff2");
+      font-weight: 400;
+      font-display: block;
+    }
+    @font-face {
+      font-family: "Source Code Pro";
+      src: url("./fonts/SourceCodePro-Semibold.woff2") format("woff2");
+      font-weight: 600;
+      font-display: block;
+    }
     :root {
       color-scheme: light dark;
       --surface: #111;
       --text: #eee;
+      --font: "Source Code Pro", ui-monospace, SFMono-Regular, Menlo, monospace;
     }
     :root[data-theme="light"] {
       --surface: #f2f1ee;
@@ -16,8 +38,10 @@
     }
     html, body { height: 100%; margin: 0; }
     body {
-      font-family: system-ui, sans-serif;
-      background: var(--surface);
+      font-family: var(--font);
+      /* BLACK under the canvas — whatever shows past the world (overscroll, a
+         canvas that hasn't sized yet) is void, not paper */
+      background: #000;
       color: var(--text);
     }
     canvas { display: block; width: 100vw; height: 100vh; }

@@ -1,6 +1,6 @@
-# anon&mato — design canon
+# anon & mato — design canon
 
-The game presents as **anon&mato** ("Thrive" was an old working name; the repo,
+The game presents as **anon & mato** ("Thrive" was an old working name; the repo,
 package id and paths keep `thrive`). It runs standalone (no build step, vanilla
 ES modules, Canvas2D) and is meant to also run as a napp inside the nostrapps
 launcher.
@@ -14,7 +14,8 @@ speculative abstractions for unbuilt features.
 
 - **board** — one tile's playable interior grid (radius 4, 61 hexes)
 - **seam** — the shared one-tile row between boards (the parent grid's edges)
-- **post** — a seam tile where three boards meet (a parent vertex)
+- **post** — a seam tile where three boards meet (a parent vertex); a
+  CONFLUENCE once seams are rivers — three shores to pick from, one bridge
 - **gate** — the single doorstep EDGE that opens a walled board
 - **cross** — stepping off the seam onto another board (the boards slide)
 - **clear** — fully discover a board (what opens its gate)
@@ -22,7 +23,10 @@ speculative abstractions for unbuilt features.
 - **fog** — undiscovered ground; **trail** — the day's committed path
 - **angle** — the setup angle (0° up, clockwise); it seeds where the gate falls
 - **leap** — the power move: jump the diagonal (the tile beyond the edge two
-  adjacent neighbours share) for one step's price
+  adjacent neighbours share) for one step's price (RETIRED 2026-08-02 —
+  it fords rivers; see *Rivers*. Returns only as an earned ability.)
+- **ford** — to cross a river on foot, no bridge; what the leap used to do
+  to a seam, and what a river is meant to refuse
 
 ## Pillars
 
@@ -134,19 +138,219 @@ speculative abstractions for unbuilt features.
   properties are cost multipliers on the level base. Seam tiles default to the
   `seam` type (move ×0.5 — the cheap roads); board interiors default to
   `plain` (×1). The standing hook for terrain/specials with real costs.
+  (See *Rivers* below: the reframing keeps the ×0.5 ALONG a seam and prices
+  the step ACROSS it separately.)
+
+### Rivers (settled 2026-08-02 — the seam reframed; BUILT 2026-08-03/04)
+
+**Every seam is a river. The gate is a bridge.** Same geometry, opposite
+reading: the one-hex row between boards stops being a corridor you walk
+through and becomes the water you have to get across. Each board is an
+ISLAND, and the map is no longer a plane you wander — it's a network you
+build, one crossing at a time.
+
+- **On foot you can stand in a river, and that's all.** A seam tile stays
+  walkable: you step into the water and you're there. But from a river tile
+  there is nowhere to go — not across, and **not along**. Your moves are: back
+  to the tile you came from, or BUILD. A river tile is a dead end you enter and
+  leave the same way. (Aboard the raft it is the opposite of a dead end — see
+  the raft, below. Everything here describes being in the water on your feet.)
+- **River tiles do not connect to each other.** You always enter the water FROM
+  a shore, so reaching the next river tile means going back to land and
+  stepping in again: river → land → river, never river → river. The seam stops
+  being a path in the movement graph at all — each of its tiles hangs off the
+  land beside it, like a jetty. (This is the precise form of "not along", and
+  the shape the implementation wants: a river tile's only edges are to its
+  banks, plus whatever a bridge adds.)
+- **This retires the seam as a travel network.** The old model made seams the
+  cheap roads (×0.5) and the whole ring roamable — that's exactly what a river
+  is not. Nothing can strand you (coming back is always legal), but "walk the
+  seam around to the gate" stops being a thing you can do. See *What moves*
+  below: the ×0.5 road price and the 2026-07-03 circumnavigation both go.
+- **A bridge joins TWO TILES, and you pick them.** Not an edge, not a board —
+  one tile to one tile. You build standing in the river, and at the moment of
+  construction you CHOOSE which tile the bridge lands on. That choice is the
+  commitment: a bridge is a place you decided, and where it puts you down
+  decides what you can reach next. Once built it's permanent and works both
+  ways.
+- **A bridge must land on LAND.** You cannot bridge to water — the far end is
+  always a board tile, never another river tile. This is what settles
+  JUNCTIONS: standing in a confluence, three boards touch you, and this
+  first special bridge builds ONE crossing — so you pick a SIDE. The other two
+  stay water until something else spans them. A confluence isn't a special
+  case, it's just a river tile with more shores to choose from.
+- **You can SEE across — that's what standing in a river is for.** Sight and
+  walk are separate (they already are: `isFrontier` uses sightNeighbors while
+  movement filters impassable ground), so from a river tile you can scout the
+  far bank. Nothing to walk to, everything to look at. Which makes the river a
+  VANTAGE, not just an obstacle: you wade in, scout across, see what's over
+  there, and only then decide where three loads of rubble are going. The
+  bridge choice is an informed one, and the looking is what earns it.
+- **The wall's debris makes a RAFT, not a bridge** (2026-08-03 — this replaces
+  "the debris is the first bridge"). Clearing a board tears its wall DOWN, and
+  what's left is material: rubble you can pick up. What you build with it is the
+  first VEHICLE. Why the change: a bridge needs a landable bank on the one river
+  tile you can reach, and some worlds don't have one — a scan of sixteen test
+  worlds found five where every bank off the gate tile is open water, i.e. a
+  board you could never leave. Water always goes somewhere; a raft can't seal
+  you in. It also makes the one-waterfront-tile rule a feature: the tile past
+  your gate is your HARBOUR.
+- **The SHALLOWS are a river by another name** (RULES 34/35, 2026-08-04). The
+  water in play is not only the seam: board water of **deepness 0** counts too,
+  so ponds, tarns and coastal fringes are road to a raft and a lake stops being
+  a hole you walk around. And they behave exactly like a river ON FOOT: you wade
+  in from a bank and stand there, and the only ways out are that same bank and a
+  bridge. So every rule about water is one rule — a dead end you enter to LOOK
+  from and to BUILD from, and a network once you're afloat. That's what makes a
+  boat buildable on a lake: you can stand in it to haul the loads in and raise
+  it. (The "needs swimming" the shallows used to advertise is gone with the
+  rule — swimming was never a thing.) Deeper water, deepness 1+, is still
+  nothing but a wall and still says so.
+- **A raft lives on the water.** It is moored at one river tile and only moves
+  when you're on it: board it by stepping onto its tile from a bank, and while
+  aboard the river stops being a dead end — navigate tile to tile, and land on
+  ANY shore. Step ashore and it stays where you left it. That's the game of
+  owning one: not affording it, but knowing where it is. (One raft, for now.)
+- **The haul** (built 2026-08-04, RULES 33). The raft isn't granted, it's
+  CARRIED: pick up a load of debris, walk it to the water, drop it. **One load**
+  — a raft is the cheap starter vehicle; a bridge's three (below) is what heavy
+  permanent work costs. The rubble is VERY heavy, so even one trip is a slow
+  one; the pack's weight already prices movement and this is the load that makes
+  you feel it. Uses what is already there — gather/carry/drop, the carry cap,
+  load → move cost. As built:
+  - Opening the gate FELLS the wall, and the felled stretch leaves **three loads
+    of `debris` on the DOORSTEP tile** — an ordinary pile, on the tile the wall
+    stood on, one step from the water it's meant for. Three is a bridge's price;
+    a raft spends one of them. (`fellWall`, keyed off the same ratchet that
+    opens the gate, and planted in the day's start snapshot so a rewind can't
+    sweep it away.)
+  - `debris` weighs **6** — the heaviest thing in the game, a full base pack on
+    its own. One load is one trip, and that trip costs double per step.
+  - Building takes what's **lying on the tile**, never what's on your back: you
+    haul it into the water and drop it, then build. A raft costs 1 load, a
+    bridge 3. Neither costs minutes for now — the walk under the load was the
+    price.
+  - The way home may go BY WATER. Ashore across the river, the reserve prices
+    walking back to the raft, boarding it, punting to a shore that knows the
+    way, and walking from there. Without that the far bank reads as unreachable
+    from home and the never-strand rule refuses to let you off the raft at all —
+    you could sail anywhere and land nowhere. (`reserveMap` seeds the raft's
+    tile as a second source; `reserveBase` is the walking-only map the water
+    route reads, so the one raft is never counted twice.)
+- **A BRIDGE is what you build later, and it's a different thing.** Once a raft
+  crosses water, a bridge isn't about crossing — it's about crossing WITHOUT the
+  raft: with a cart, with a load, without dismounting, every day, forever.
+  That's a road. Three hauls, sited where you stand, joining two tiles you pick
+  — and it DAMS the river (see below), which is now a real decision rather than
+  a footnote: your first bridge closes a stretch of water you were using.
+- **…and it DAMS the river.** A debris bridge sits low on the water: **boats
+  cannot pass it**. Later bridges — raised, arched, built rather than tipped
+  into place — will let them through. So the first crossing has a price you
+  can't see when you pay it: the tile you span stops being navigable, and a
+  seam you bridge early is a seam your boats can't run later until something
+  better replaces it. Crossing the water and travelling the water are rival
+  uses of the same tile, and that tension is the point.
+- **What it preserves.** Seam tiles stay ordinary shared ground on the parent
+  node; SPACE IS GLOBAL is untouched; junctions stay junctions (confluences
+  now). Clearing a board still opens its gate — the gate is just re-read as
+  your first bridge rather than a door swinging in a wall. The progression
+  that exists keeps working; what changes is what it means.
+
+- **The leap is retired** (2026-08-02). Hopping the diagonal across a seam is
+  FORDING — crossing the water on foot, under your own power — and that is
+  precisely what a river must not give away. It goes off for now. It may come
+  back as something EARNED: a skill level or a learned ability that lets you
+  ford, presumably at a real cost, one tile of river, and never at a
+  confluence. Until then a river is crossed by bridge or not at all. (See the
+  LEAP rule in *Energy / movement model* — the flag stays, the default flips.)
+
+**Still open:**
+
+0. **What the UI says about crossing.** The raft has a menu node (standing in
+   the water, "build raft", greyed with what it still needs) and a hull drawn
+   where it's moored; the card names the river and reads back your two states
+   ("back the way you came" / "any shore"). The BRIDGE has its rule and its
+   price in the sim and no way to raise one — it wants the tile-picking gesture
+   the design asks for (you choose the far bank), which is a UI question, not a
+   rules one.
+1. **Bridges after the first.** The debris pays for one. The rest want to be
+   a BUILD — materials + a day's work, sited where you stand — since that's
+   the pillar the game already has and a bridge you sited yourself is a
+   pattern you made. What it costs is open.
+2. **Boats beyond the raft.** The raft (above) is the first one and it arrives
+   early — the wall's own debris. What's open is what comes after it: a boat
+   that carries cargo, one that's faster, one you can own more than one of, and
+   whether any of them is a craft, a skill or a place. The arc is settled
+   though: seams were roads → rivers you can only stand in → rivers you can run,
+   from the first day you clear a board.
+3. **Can a bridge be undone?** Torn down, rebuilt raised, moved — or is an
+   early crossing a permanent dam on that tile? Deliberately parked
+   (2026-08-02): no strong opinion yet, and nothing else waits on it.
+
+**What it costs to cross, in practice** (measured 2026-08-03, once the rules
+were in the sim): behind a walled home you can reach 62 tiles on foot — the
+board and the single river tile past the gate. With a raft moored there, that
+becomes ~220. So the raft is worth roughly three and a half boards of world,
+and it is the difference between a life and a cell. The second thing the
+measurements showed: hauling ACROSS water is expensive enough to change how you
+play — carrying five items' worth of camp materials over a river is no longer a
+single outing, it wants ferrying (gather, drop on the bank, come back). That is
+the pack-weight rule biting exactly where it should, and it's what makes the
+bridge worth its three hauls later.
+
+**What moves when it's built:** the `seam` type's ×0.5 "cheap roads" price
+(gone — a river isn't a road) and the whole seam-as-network reading in *The
+world*; the 2026-07-03 frame-follows-the-seam circumnavigation (moot); the
+gate bullet (gate → first bridge, sited by the player); the leap (Energy /
+movement model). Implementation is probably the walls primitive already in
+hand: a river tile is walled on every side, and building a bridge clears the
+two facing bits between the chosen pair — exactly what the gate does today,
+just chosen instead of decreed.
 
 ## Energy / movement model (reworked 2026-07-01 — one-way costs)
 
 - Costs are **one-way, never refunded**. Two actions:
   - **SCOUT** (`scout`): reveal an adjacent undiscovered tile WITHOUT moving,
     cost `SCOUT_COST (1) × level base` — discovering is cheap; walking there
-    is the commitment.
+    is the commitment. **Priced PER RING OF TILES** (RULES 32, 2026-08-03) —
+    one literal hex ring outward from the world's origin, one more multiple:
+
+    | ring (hex distance from home's centre) | scout |
+    | --- | --- |
+    | 0–5 — the home board and the river ringing it | **1×** |
+    | 6 — the first shore | **2×** |
+    | 7 | **3×** |
+    | *n* > 5 | **(n − 5)×**, uncapped |
+
+    `max(1, ring − SEAM_RING + 1)`. Two gentler shapes were tried first and
+    neither changed behaviour: a smooth `1 + tiles/20` ramp (RULES 31), and a
+    step per BOARD ring. Why so steep: the daily budget IS your discovered tile
+    count, so cheap scouting COMPOUNDS — every tile revealed buys more revealing
+    tomorrow, and exploration ran away with the game. Distance had to stop being
+    free real estate, so that SETTLING and working your surroundings is the
+    better move. The scout SKILL is what wins the range back (−1/30 per level,
+    half price at 15), which makes the ladder: stay close, get good, then go
+    far. Nothing is exempt but home and its own river ring — the rivers further
+    out are priced by their ring like everything else.
+
+    **What the ramp costs, measured** (2026-08-04). A cap at 3× was tried for an
+    hour and reverted — the steepness is the point — but the number is worth
+    keeping: SAILING pays this ramp hardest. The ring is distance from the
+    world's origin and the river network winds outward, so the water ahead of the
+    boat gets dearer with every tile (ring 10 → 6×, ring 15 → 11×), and you
+    cannot sail into fog. A 61-minute day afloat spent **34 minutes revealing the
+    way** and had nothing left to reveal a bank, let alone step onto one: the
+    raft could go anywhere and put you nowhere but the first shore past the gate.
+    So a raft's range is not its own — it is the scout budget, and it is what the
+    scout SKILL (and a camp on the far side, once camps carry a reserve) is for.
   - **MOVE** (`move`): step onto *known* ground only, cost
     `MOVE_COST (2) × level base` per step, halved on seam tiles (1) — the
     seams are the roads, cheap to travel. Backtracking costs too — walking
     home is time that passes.
-  - **LEAP** (part of `move`, `LEAP` flag — dev-on for playtesting, later an
-    unlockable ability): jump the DIAGONAL — the tile directly beyond the
+  - **LEAP** (part of `move`, `LEAP` flag — **OFF from 2026-08-02**: it fords
+    rivers, so the default flips and it returns only as an earned ability; see
+    *Rivers* in The world. The rule below stands for when it does):
+    jump the DIAGONAL — the tile directly beyond the
     edge two adjacent neighbours share — for the price of ONE step onto the
     landing (2 plain, 1 seam). The leap rides that shared edge like a road:
     out through the vertex between the flankers, along their edge, in through
@@ -216,7 +420,9 @@ speculative abstractions for unbuilt features.
   mismatched saves reset, stashed not destroyed). Day-enders (rest / goHome /
   restResume) are logged — pushed before running, they bank as their day's
   last entry, which is what lets a save replay ACROSS days. The controller
-  mirrors every successful dispatch to localStorage (`anon&mato:save`).
+  mirrors every successful dispatch to localStorage (`anon&mato:save` — the
+  STORAGE KEYS keep the old spelling on purpose: renaming one orphans a live
+  save or the drawn icon store).
 - Nostr rides the same format later: one event per banked day (NIP-78 style,
   `d = anon&mato:<world>:day:<n>` — editing a day republishes one event) plus
   a replaceable head event; the npub is the player, and deriving each world
@@ -267,6 +473,14 @@ The works layer, all through the same day/reserve economy:
   plants return within the day, metal is a yearly pilgrimage. Affordability
   keeps the reserve invariant against the HEAVIER pack — the way home is
   re-priced at the post-pickup load, so a gather can never strand you.
+  **Some harvests need GEAR** (RULES 36, 2026-08-04): fish come out of the
+  water only to a **net** on your back. Wading into the shallows put fish
+  within reach (see *Rivers*), and reach was never the hard part — a resource
+  the map hands you the moment you can stand next to it is a resource worth
+  nothing, so the tackle is the gate, not the boat. It's declared on the
+  RECIPE (`catches: "fish"`), so the next piece of gear is a recipe entry and
+  no new machinery: `canGather` refuses without it and `gatherInfo().lacks`
+  names it, which is what the menu prints ("fish · needs a net").
 - **Spoilage & wear** — the pack is dated INSTANCES, not counts. A raw
   harvest has a SHELF life (`RESOURCES[r].shelf`, world-minutes): food rots
   and is lost past it (fish 1 day, plants 3, eggs 4; wood/rock/metal keep).
@@ -279,6 +493,9 @@ The works layer, all through the same day/reserve economy:
   `CARRY_BASE + gather level + baskets`. The LOAD multiplies every step
   linearly up to 2× at a full pack — through the exact reserve, weight
   literally shortens reach. Full pack = no more picking up (hard cap).
+  `debris` (weight 6, the felled wall's rubble — see *Rivers*) is the extreme
+  case and the reason the rule exists: one load IS a full base pack, so a haul
+  is a single slow trip and nothing else comes with you.
 - **Craft** — a SERVICE the NPCs sell, not a self-skill. Each recipe belongs
   to a `biome`; only a figure NATIVE to that land (their board's main type)
   can make it, and only at `level` in that land's skill. You carry the raw
@@ -288,7 +505,9 @@ The works layer, all through the same day/reserve economy:
   breaks the reserve. Crude tier: the plains weaver's basket (5 plants → +4
   carry AND `keeps` ×1.5 on perishable shelf, the first storage tech; later
   builds preserve far longer), the forest wright's axe (2 wood + 1 rock →
-  halves wood gathering, wears out). Crafting is deliberately OUTBOUND and
+  halves wood gathering, wears out), and the same weaver's **net** (4 plants),
+  which is TACKLE rather than an easement — see the fishing gate below.
+  Crafting is deliberately OUTBOUND and
   camp-gated: board centres sit ~10 tiles past the seam, so reaching a
   specialist to transact means anchoring the reserve with a camp nearby —
   a mid-game expedition, not a home convenience. No resident home crafter;
@@ -297,14 +516,30 @@ The works layer, all through the same day/reserve economy:
   build level, minutes. The CAMP (`BUILDS.camp`) joins `restSpots`: the
   reserve anchors to it immediately and the day can END there (rest works
   at any resting place, not just home).
-- **Drop / stash / take** — you can `drop` any item onto the tile underfoot,
-  instantly and free. On a HOME tile that STASHES it (recoverable by
-  `take`), turning the identity/minimap tiles into storage cells — ONE item
-  type per cell. Anywhere else, a drop DISCARDS the item for good
-  (non-recoverable). The stash lifts weight off your back for the next
-  expedition; stashed food still spoils (a plain cell keeps time — a carried
+- **Drop / take — what you put down STAYS PUT** (RULES 29, 2026-08-02;
+  supersedes "a drop outside is lost for good"). You can `drop` any item onto
+  the tile underfoot, instantly and free, ANYWHERE — and it lies on that exact
+  tile until someone picks it up with `take`. Every tile is a storage cell,
+  keyed by global coord; still ONE item type per cell. This is what makes
+  material HAULING possible (carry a load to a site, leave it, come back with
+  more — see *Rivers*: one load of the felled wall's debris makes the raft,
+  three make a bridge, and a build takes them off the GROUND, not your back), and it
+  turns any tile into a depot. Dropping lifts weight off your back for the
+  next leg; dropped food still spoils (a plain tile keeps time — a carried
   basket's preserve factor does NOT reach it; a preserving STORE is future
-  tech). Stashed cells show a small ring on the home board.
+  tech). Piles show a small ring on their tile, and the tile underfoot lists
+  what's on it in the bottom-RIGHT corner, mirroring your own pack's row in
+  the bottom-left.
+- **Carrying wants a real system (open, 2026-08-02).** Today capacity is one
+  number — weight against `CARRY_BASE + gather + baskets` — and that won't
+  carry the game much further. What's needed is at least TWO axes: **weight**
+  (what you can bear) and **SIZE/bulk** (what you can physically hold at
+  once), so that a bridge's worth of rubble is not "heavy" but *unwieldy* —
+  three trips because your arms are full, not because your back gives out.
+  That split is what makes VEHICLES mean something later: a cart, a barrow, a
+  raft — each one a container with its own bulk allowance, its own speed
+  penalty, and its own terrain it can't cross. Not designed yet; the shape of
+  the answer is "the pack is one container among several".
 - Practice: gather/craft/build each train their own skill (the same
   doubling-threshold counters as walking and scouting).
 - State (`inventory` as instance arrays, per-tile `gatheredAt`, camps) is
@@ -754,7 +989,13 @@ the budget-curve source per actor (stat-derived vs flat).
   mountain/cliff/peak 2× move + 2× scout — capped at 2×. **Water is
   IMPASSABLE on foot** but scoutable (sight vs walk split: isFrontier uses
   sightNeighbors, movement filters impassable ground; no leaping over or
-  onto water — straits are for boats). Seams stay the roads, so no terrain
+  onto water — straits are for boats). **The SHALLOWS are the exception**
+  (RULES 34/35, 2026-08-04): board water of deepness 0 — the kind you can
+  see the bottom of — is not impassable at all. A raft crosses it, and on
+  foot you can wade in and stand there under the river's own rule (out only
+  by the bank you came in by, or a bridge), which is what makes a lake a
+  place you can build a boat on. Only deepness 1+ is still a wall, and it is
+  the only water that warns you. See *Rivers*. Seams stay the roads, so no terrain
   roll strands anyone; sealed pockets = future content. **The home board
   never rolls open water** (it must stay fully discoverable or the gate
   could never open): home water demotes to marsh, neighbours still see the

@@ -1,4 +1,4 @@
-# anon&mato — resource, skill & tech vision
+# anon & mato — resource, skill & tech vision
 
 **What this is.** The map we build *toward* — the full shape of the resource
 ecosystem, the 12 skills, and the tech tree, drawn before the code so each
