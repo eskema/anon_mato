@@ -540,7 +540,22 @@ The works layer, all through the same day/reserve economy:
   raft — each one a container with its own bulk allowance, its own speed
   penalty, and its own terrain it can't cross. Not designed yet; the shape of
   the answer is "the pack is one container among several".
-- Practice: gather/craft/build each train their own skill (the same
+- **Eat & cook — FOOD IS TIME (RULES 37, 2026-08-10).** Food's sink is the
+  budget itself: every raw food carries `food` — nourishment in MINUTES
+  (plants 6, fish 12, eggs 9) — and `eat` (2 min, anywhere, oldest fresh
+  instance first) adds it to TODAY's waking window. Capped at +60/day (the
+  sacred baseline again: a second wind, not a second day) and never past
+  midnight; `eat` refuses a bite worth less than the sitting, so it can't
+  strand you. `cook` (10 min eased by the cook skill, half at 15; trains
+  cook — the first SPACE transform) works AT A HEARTH — any resting place —
+  and turns one raw unit into a MEAL worth 3× its nourishment, carried on
+  the instance (`{at, food}`); meals keep 1 day (for the trip, not the
+  hoard — the preserving STORE stays future tech) and weigh 1, so cooking
+  never breaks the load-priced reserve. Accounting: `fed` (minutes eaten
+  into today) grows the budget reading instead of un-spending energy, so
+  the clock and `worldMin` stay monotonic; day-snapshotted, log-derived.
+  Both live in the radial menu as folders (eat anywhere; cook at hearths).
+- Practice: gather/craft/build/cook each train their own skill (the same
   doubling-threshold counters as walking and scouting).
 - State (`inventory` as instance arrays, per-tile `gatheredAt`, camps) is
   log-derived; the save FORMAT is unchanged (still just the action log).

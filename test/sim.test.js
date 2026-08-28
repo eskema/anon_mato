@@ -139,7 +139,10 @@ function candidates(sim) {
     }
   }
   if (sim.canEnter()) out.push({ type: "enter" })
-  if (v.tile.safe && Hex.equals(v.player, [0, 0])) out.push({ type: "rest" })
+  // …and REST, asked of the sim like every other candidate above: since
+  // 2026-08-10 a day with an empty log can't be slept off, so "standing at
+  // home" is no longer the whole rule
+  if (sim.canAct({ type: "rest" })) out.push({ type: "rest" })
   return out
 }
 

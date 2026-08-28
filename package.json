@@ -1,6 +1,6 @@
 {
   "name": "thrive",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "description": "anon&mato — a hex-grid game napp (repo keeps the old working name thrive)",
   "scripts": {
