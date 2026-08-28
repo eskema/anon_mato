@@ -7,7 +7,7 @@
 // something imports it, and a dev-only one (styleguide, worldview, iconmaker…)
 // stays out because nothing in the game reaches it.
 //
-//   npm run napp   →   napp/  (gitignored)
+//   bun run napp   →   napp/  (gitignored)
 //
 // Then in nostrapps: add a local napp and point the folder picker at napp/.
 // The launcher needs /index.html and /metadata.json with an .id — both land at

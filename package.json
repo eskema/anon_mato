@@ -4,10 +4,10 @@
   "private": true,
   "description": "anon&mato — a hex-grid game napp (repo keeps the old working name thrive)",
   "scripts": {
-    "dev": "python3 -m http.server 4321 --bind 127.0.0.1",
-    "napp": "node tools/build-napp.mjs",
-    "test": "node --test test/sim.test.js",
-    "vendor": "esbuild node_modules/nostr-tools/lib/esm/pure.js --bundle --format=esm --minify --outfile=lib/vendor/nostr-pure.js && esbuild node_modules/nostr-tools/lib/esm/nip19.js --bundle --format=esm --minify --outfile=lib/vendor/nostr-nip19.js && esbuild node_modules/nostr-tools/lib/esm/nip44.js --bundle --format=esm --minify --outfile=lib/vendor/nostr-nip44.js && esbuild node_modules/nostr-tools/lib/esm/pool.js --bundle --format=esm --minify --outfile=lib/vendor/nostr-pool.js"
+    "dev": "bun tools/serve.mjs",
+    "napp": "bun tools/build-napp.mjs",
+    "test": "bun test --timeout 30000 test/sim.test.js",
+    "vendor": "bunx esbuild node_modules/nostr-tools/lib/esm/pure.js --bundle --format=esm --minify --outfile=lib/vendor/nostr-pure.js && bunx esbuild node_modules/nostr-tools/lib/esm/nip19.js --bundle --format=esm --minify --outfile=lib/vendor/nostr-nip19.js && bunx esbuild node_modules/nostr-tools/lib/esm/nip44.js --bundle --format=esm --minify --outfile=lib/vendor/nostr-nip44.js && bunx esbuild node_modules/nostr-tools/lib/esm/pool.js --bundle --format=esm --minify --outfile=lib/vendor/nostr-pool.js"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",
