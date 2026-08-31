@@ -1720,3 +1720,33 @@ test("the sim runs with no DOM (this whole file is the proof)", () => {
   assert.equal(sim.depth(), 2) // starts inside the home safe space
   assert.ok(sim.view().tile.safe)
 })
+
+// ── the reserve invariant, against a LIVED save ──────────────────────
+// The 2026-08-31 stranding: standing ON the raft, a route that stepped ashore
+// and waded into other water was priced with the sail-away reserve (returnVia
+// read aboard() off the live player) — the commit landed with energy 23.9
+// against a true wade-out reserve of 39.4, and every further click was
+// correctly refused: hard-stranded. returnVia takes an explicit `afloat` now,
+// and this replays the actual save through the LIVE dispatch (can() enforced)
+// to hold the line: no accepted action may ever leave energy below the way
+// back, and the one bad move must be refused.
+test("a lived save replays without ever breaking energy ≥ reserve (stranding regression)", async () => {
+  const { readFileSync } = await import("node:fs")
+  const save = JSON.parse(readFileSync(new URL("./fixtures/stranded-save.json", import.meta.url)))
+  const sim = createSim(save.world)
+  const rejected = []
+  for (const d of save.days)
+    for (const a of d.actions) {
+      const r = sim.dispatch(a)
+      if (!r.ok) {
+        rejected.push({ day: d.day, type: a.type })
+        continue
+      }
+      if (a.type === "rest" || a.type === "goHome" || a.type === "restResume") continue
+      const e = sim.energy()
+      const ret = sim.returnCost()
+      assert.ok(e + 1e-9 >= ret, `day ${d.day}: after ${a.type}, energy ${e} < reserve ${ret}`)
+    }
+  // exactly the day-24 raftless wade-in is refused — the honest pricing at work
+  assert.deepEqual(rejected, [{ day: 24, type: "move" }])
+})

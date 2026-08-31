@@ -1,0 +1,52 @@
+<!doctype html>
+<!-- ANIM LAB — the shell. Rides in the playground (cube view) as the
+     "animate" tab, and stands alone at /lab/animate.html.
+
+     One bar picks the component (menu open · menu close · whatever joins
+     the registry in animations.js); the host below carries whatever the
+     component mounts — usually the keyframe bench (bench.js), but an entry
+     with its own mount() can bring anything. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>anim lab</title>
+  <link rel="stylesheet" href="./bench.css" />
+</head>
+<body class="shell">
+  <header id="labbar">
+    <nav id="labnav"></nav>
+    <span></span>
+    <span id="labnote">isolated elements · the game's own draw code · tune → copy JSON → paste in chat</span>
+  </header>
+  <div id="lab-host"></div>
+  <script type="module">
+    import { ANIMATIONS } from "./animations.js"
+    import { mountBench } from "./bench.js"
+
+    const KEY = "thrive.lab.animate.current"
+    let savedId = null
+    try { savedId = localStorage.getItem(KEY) } catch {}
+    const host = document.getElementById("lab-host")
+    const nav = document.getElementById("labnav")
+    let mounted = null
+    const btns = new Map()
+
+    function show(a) {
+      try { localStorage.setItem(KEY, a.id) } catch {}
+      mounted?.destroy?.()
+      mounted = a.mount ? a.mount(host) : mountBench(host, a)
+      for (const [id, b] of btns) b.classList.toggle("active", id === a.id)
+    }
+    for (const a of ANIMATIONS) {
+      const b = document.createElement("button")
+      b.className = "atab"
+      b.textContent = a.label
+      b.addEventListener("click", () => show(a))
+      nav.append(b)
+      btns.set(a.id, b)
+    }
+    show(ANIMATIONS.find(a => a.id === savedId) || ANIMATIONS[0])
+  </script>
+</body>
+</html>
