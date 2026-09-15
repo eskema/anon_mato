@@ -1,5 +1,19 @@
 # attic — parked experiments
 
+`decisions.md` — parked REASONING: things tried in the code and dropped, with
+why. Comments say what the code does; when one starts narrating what we tried
+last week, it moves there.
+
+`setup/` — the OLD setup flow, parked 2026-09-02 when setup was folded INTO
+the game screen as phases (see DESIGN, "Setup IS the game"): `nostr.js` (the
+fog-tile key prompt with its own chrome and fades), `confirm.js` (the identity
+card hosting the angle picker, the wake button, the continue path), `stage.js`
+(the setup screens' window into the game — a real sim and renderer borrowed
+for geometry, the night, the sky, chrome that dodged the pointer) and `fade.js`
+(its arrival/chase eases). Their imports point at `../render.js` etc. — restore
+to `lib/setup/` to revive. The picker (`lib/setup/angle.js`) stayed in place
+for the angle phase.
+
 The first-person 3D world view, pulled out of the app (2026-07-13) to keep
 the focus on gameplay. Working state at park time; kept as a template base
 for whenever the itch returns.

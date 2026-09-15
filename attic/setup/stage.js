@@ -14,7 +14,7 @@
 // once the key lands — same world, now with a name on it.
 
 import { createSim } from "../sim.js"
-import { createRenderer, cursorDot, dialRadius, drawPlayer, playerWeight, frontierDot, fogHover, fogCoat, hexCorners, mapLight, nightPair, drawSkillWheel } from "../render.js"
+import { createRenderer, cursorDot, dialRadius, drawPlayer, playerWeight, frontierDot, fogHover, hexCorners, drawSkillWheel } from "../render.js"
 import { STAT_NAMES } from "../sim.js"
 import { sunState, moonState } from "../clock.js"
 import { drawIcon } from "../icons.js"
@@ -43,17 +43,14 @@ export function createStage(pubkey = null) {
   // in setup that ring IS the face the angle is measured on.
   const dialR = () => dialRadius(geom.size)
 
-  // The world's own hour, painted: the fog's base coat and the night over it.
-  // Returns the dress everything drawn after should wear — after dark the
-  // readable layer flips light, and setup is all readable layer.
+  // SETUP IS BLACK (2026-09-02): day one begins at 00:00, and the stage wears
+  // the plain dark — no tinted coat, no lamp pool, no halo — with the night's
+  // bright ink for everything readable. One dot on black. Returns the dress
+  // everything drawn after should wear.
   function night(ctx, L) {
-    const spent = sim.dayBudget() - sim.energy() // minutes since waking; day one starts at 00:00
-    const dial = { day: sim.day(), minuteOfDay: spent, cx: geom.x, cy: geom.y, R: dialR() }
-    const { sunDeg, sunAlt, isNight } = sunState(dial)
-    const dress = nightPair(theme("--text", "#eee"), theme("--surface", "#111"), sunAlt, isNight)
-    fogCoat(ctx, L, dress.surface)
-    mapLight(ctx, L, geom, geom.size, { sunAlt, sunDeg, isNight, moon: moonState(dial) })
-    return dress
+    ctx.fillStyle = "#000"
+    ctx.fillRect(0, 0, L.w, L.h)
+    return { ink: "#e8eaf2", surface: "#000", t: 1 }
   }
 
   // THE YEAR'S SKY — the same constellations the game draws, brought in over
