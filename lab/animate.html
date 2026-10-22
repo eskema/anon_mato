@@ -1,6 +1,6 @@
 <!doctype html>
-<!-- ANIM LAB — the shell. Rides in the playground (cube view) as the
-     "animate" tab, and stands alone at /lab/animate.html.
+<!-- ANIM LAB — the shell. Rides in the playground's animate tab, and
+     stands alone at /lab/animate.html.
 
      One bar picks the component (menu open · menu close · whatever joins
      the registry in animations.js); the host below carries whatever the
@@ -24,7 +24,7 @@
     import { ANIMATIONS } from "./animations.js"
     import { mountBench } from "./bench.js"
 
-    const KEY = "thrive.lab.animate.current"
+    const KEY = "anon_mato.lab.animate.current"
     let savedId = null
     try { savedId = localStorage.getItem(KEY) } catch {}
     const host = document.getElementById("lab-host")

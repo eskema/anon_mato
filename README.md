@@ -16,6 +16,15 @@ bun run dev
 
 http://127.0.0.1:4321
 
+## Package
+
+```bash
+bun run napp
+```
+
+Builds `napp/` — the game and the playground's pages, nothing else — ready
+for the nostrapps launcher's folder picker.
+
 ## Docs
 
 [DESIGN.md](DESIGN.md) — what runs, and why.

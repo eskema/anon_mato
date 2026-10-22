@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "thrive",
+      "name": "anon_mato",
       "devDependencies": {
         "esbuild": "^0.28.1",
         "nostr-tools": "^2.23.9",

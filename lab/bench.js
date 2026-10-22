@@ -92,7 +92,7 @@ export function easeHandles(e) {
 const matchPreset = arr =>
   Object.keys(PRESETS).find(n => PRESETS[n].every((v, i) => Math.abs(v - arr[i]) < 0.0005)) || null
 
-// ── the pure core (imported by node tests too) ─────────────────────────
+// ── the pure core ──────────────────────────────────────────────────────
 // value of track `id` at `time`, for an animation document + track metas
 export function sampleTrack(doc, tracks, id, time) {
   const ks = doc.tracks[id]
@@ -168,10 +168,8 @@ export function mountBench(host, cfg) {
   const store = cfg.store
   const animId = cfg.anim || cfg.id
 
-  // same theme rule as the game (main.js): saved wins, light is the default
-  let savedTheme = null
-  try { savedTheme = localStorage.getItem("thrive-theme") } catch {}
-  document.documentElement.dataset.theme = savedTheme || "light"
+  // one look, the game's light paper
+  document.documentElement.dataset.theme = "light"
 
   const root = document.createElement("div")
   root.className = "bench"

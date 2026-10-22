@@ -24,7 +24,7 @@ export const ANIMATIONS = [
     id: "menu-open",
     label: "menu open",
     title: "menu open",
-    store: "thrive.lab.menu-open",
+    store: "anon_mato.lab.menu-open",
     ...menuBench,
     // render.js GROW_MS=620, growEase — DECOMPOSED so the backstep is yours:
     // the dip key is the back movement (t = timing, v = distance), with an
@@ -49,7 +49,7 @@ export const ANIMATIONS = [
     id: "menu-close",
     label: "menu close",
     title: "menu close",
-    store: "thrive.lab.menu-close",
+    store: "anon_mato.lab.menu-close",
     ...menuBench,
     // render.js closing paint, MENU_MS=540: the tile rides 1 − easeInBack —
     // swells a hair (~3.2× around 230ms) as it lets go, then draws down and

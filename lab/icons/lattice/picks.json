@@ -1,0 +1,44 @@
+{
+ "moves": {
+  "walk": "new",
+  "ford": "new",
+  "leap": "new"
+ },
+ "land": {
+  "marsh": "new",
+  "cliff": "new",
+  "post": "new",
+  "stream": "new",
+  "trail": "new"
+ },
+ "quarry": {
+  "piercer": "new",
+  "cord": "new"
+ },
+ "tools": {
+  "spear": "new",
+  "spear:fine": "new",
+  "axe:fine": "new",
+  "net:fine": "new"
+ },
+ "folk": {
+  "rim": "new",
+  "angle": "new",
+  "faction": "new"
+ },
+ "works": {
+  "word": "new",
+  "wheel": "new"
+ },
+ "sky": {
+  "load": "new",
+  "spoil": "new"
+ },
+ "words": {
+  "mind:word": "new",
+  "space:word": "new"
+ },
+ "skills": {
+  "dream:figure": "new"
+ }
+}

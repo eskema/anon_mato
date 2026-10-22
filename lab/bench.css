@@ -78,8 +78,6 @@ body.shell { display: grid; grid-template-rows: auto 1fr; }
 }
 #stagehead .t { font-weight: 600; }
 #stagehead .s { color: var(--dim); }
-#stagehead .nav a { color: var(--dim); pointer-events: auto; }
-#stagehead .nav a:hover { color: var(--text); }
 #stageopts {
   position: absolute; top: 8px; right: 10px;
   display: grid; grid-auto-flow: column; align-items: center; gap: 10px;

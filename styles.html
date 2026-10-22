@@ -5,14 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>anon & mato · style guide</title>
   <style>
-    :root {
-      color-scheme: light dark;
-      --surface: #111;
-      --text: #eee;
+    /* the game face (index.html's), for the type samples */
+    @font-face {
+      font-family: "Source Code Pro";
+      src: url("./fonts/SourceCodePro-Regular.woff2") format("woff2");
+      font-weight: 400;
+      font-display: block;
     }
-    :root[data-theme="light"] {
+    @font-face {
+      font-family: "Source Code Pro";
+      src: url("./fonts/SourceCodePro-Semibold.woff2") format("woff2");
+      font-weight: 600;
+      font-display: block;
+    }
+    :root {
+      /* ONE LOOK: the game's light paper, no theme switch */
+      color-scheme: light;
       --surface: #f2f1ee;
       --text: #1b1b1b;
+      --font: "Source Code Pro", ui-monospace, SFMono-Regular, Menlo, monospace;
     }
     html, body { margin: 0; }
     body {
@@ -28,8 +39,12 @@
     h1 small { opacity: 0.5; font-size: 11px; margin-left: 12px; }
     section { display: grid; gap: 10px; }
     section > header { opacity: 0.5; font-size: 11px; }
-    .muted { opacity: 0.5; }
-    .s11 { font-size: 11px; }
+
+    /* type samples — the game face at the game's sizes */
+    .face { font-family: var(--font); font-weight: 600; }
+    .f13 { font-size: 13px; }
+    .f32 { font-size: 32px; }
+    .f48 { font-size: 48px; }
 
     /* alphas */
     .alphas { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
@@ -42,7 +57,7 @@
     .lines .cell { display: grid; gap: 8px; }
     .lines .stroke { background: var(--text); opacity: 0.8; }
     .lines .dash { height: 1.5px; opacity: 0.8; background: repeating-linear-gradient(90deg, var(--text) 0 5px, transparent 5px 10px); }
-    .lines .dash.undisc { background: repeating-linear-gradient(90deg, var(--text) 0 5px, transparent 5px 9px); }
+    .lines .dash.axis { height: 1px; background: repeating-linear-gradient(90deg, var(--text) 0 3px, transparent 3px 6px); }
     .lines .cell span { font-size: 11px; opacity: 0.4; }
 
     /* icons table */
@@ -80,15 +95,7 @@
     #pg .ruler.v { top: 0; bottom: 0; width: 0; border-left: 1px dashed color-mix(in srgb, var(--text) 18%, transparent); }
     #pg .ruler.h { left: 0; right: 0; height: 0; border-top: 1px dashed color-mix(in srgb, var(--text) 18%, transparent); }
     #pg .coords { position: absolute; left: 6px; bottom: 4px; font-size: 11px; opacity: 0.35; pointer-events: none; }
-    /* the icon creator injects its own styles (lib/iconmaker.js); it fills this box */
-    #iconmaker { height: 78vh; border: 1px solid color-mix(in srgb, var(--text) 15%, transparent); border-radius: 10px; }
 
-    #theme {
-      position: fixed; right: 14px; bottom: 14px; width: 38px; height: 38px;
-      display: grid; place-items: center; border: none; background: transparent;
-      color: var(--text); font-size: 18px; opacity: 0.55; cursor: pointer;
-    }
-    #theme:hover { opacity: 1; }
     a { color: inherit; }
 
     /* clock harness */
@@ -103,36 +110,38 @@
 </head>
 <body>
   <main>
-    <h1>style guide <small>dev only · <a href="./index.html">back to the game</a></small></h1>
+    <h1>style guide <small>dev only<span id="back"> · <a href="./index.html">back to the game</a></span></small></h1>
 
     <section>
-      <header>type — system-ui, sans-serif, weight 600. two sizes only:</header>
-      <div>16px — primary UI: status, budget line, buttons</div>
-      <div class="s11">11px — dense chrome: collapsed clock, radial menu slots</div>
+      <header>type — Source Code Pro, the game face (render.js gameFont), canvas included; labels are semibold. UI text is 16px, with weight and opacity for hierarchy; the other sizes are the exceptions:</header>
+      <div class="face">16px — UI text: the bar, labels, menus</div>
+      <div class="face f13">13px — small rows (LABEL_FONT_SMALL): the menu's refusal lines</div>
+      <div class="face f32">32px — big boxes: the kitchen's seats</div>
+      <div class="face f48">48px — timeline numbers</div>
     </section>
 
     <section>
-      <header>ink alphas — fills and strokes are always the theme ink at an alpha:</header>
+      <header>ink alphas — the common alphas the ink is drawn at:</header>
       <div class="alphas" id="alphas"></div>
     </section>
 
     <section>
-      <header>lines — widths 1 / 1.5 / 2 / 3 · dash [5,5] hover · [5,4] undiscovered edge:</header>
+      <header>lines — widths 1 / 1.5 / 2 / 3 · dash [5,5] hover · [3,3] sun axis, tethers:</header>
       <div class="lines" id="lines"></div>
     </section>
 
     <section>
-      <header>icons — drawn by the game's own functions, at 16 / 24 / 32 / 48 / 64 px:</header>
+      <header>icons, at 16 / 24 / 32 / 48 / 64 px — player (drawPlayer, render.js) and tip (arrowTip, draw.js) are the game's own functions; the rest are drawn here (the hexes on the game's hexCorners):</header>
       <div class="icons" id="icons"></div>
     </section>
 
     <section>
-      <header>menu icons — the radial-menu glyph system (lib/icons.js), at 24 / 32 / 48 px:</header>
+      <header>menu icons — the glyph system (lib/icons.js), at 24 / 32 / 48 px. the game draws the twelve skill glyphs plus sleep, raft, gather, close and enter; the rest of the gallery is the icon store:</header>
       <div class="icons" id="menuicons"></div>
     </section>
 
     <section>
-      <header>clock (unrestricted) — the game's dial, no gameplay limits. drag the sun to set the day; scrub the hour + budget. below the horizon the sun is eclipsed and the dial goes to night, where the 12 skill CONSTELLATIONS ride the wheel — hit “play the year” (keep the hour near midnight) to watch it rotate + the moon wash them in and out:</header>
+      <header>clock (unrestricted) — the test dial for the sun and moon math (clock.js drawDial): a 24-hour face, not the game's dial (that one is the 12-hour minute-dot horizon). no gameplay limits. drag the sun to set the day; scrub the hour + budget. below the horizon the sun is eclipsed and the dial goes to night, where the 12 skill CONSTELLATIONS ride the wheel — hit “play the year” (keep the hour near midnight) to watch it rotate + the moon wash them in and out:</header>
       <div class="clockdemo">
         <canvas id="clockcanvas" width="640" height="640"></canvas>
         <div class="clockctrl">
@@ -161,13 +170,7 @@
         <div class="coords" hidden></div>
       </div>
     </section>
-
-    <section>
-      <header>icon creator — a pointy-top hex on an iso triangle grid (like the cube view). click a wedge to fill it; the line tool snaps to triangle corners:</header>
-      <div id="iconmaker"></div>
-    </section>
   </main>
-  <button id="theme" aria-label="Toggle light/dark"></button>
   <script type="module" src="./lib/styleguide.js"></script>
 </body>
 </html>

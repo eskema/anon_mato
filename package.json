@@ -1,8 +1,8 @@
 {
-  "name": "thrive",
+  "name": "anon_mato",
   "version": "0.0.1",
   "private": true,
-  "description": "anon&mato — a hex-grid game napp (repo keeps the old working name thrive)",
+  "description": "anon&mato — a hex-grid game napp",
   "scripts": {
     "dev": "bun tools/serve.mjs",
     "napp": "bun tools/build-napp.mjs",

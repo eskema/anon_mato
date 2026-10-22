@@ -2,7 +2,8 @@
 
 `decisions.md` — parked REASONING: things tried in the code and dropped, with
 why. Comments say what the code does; when one starts narrating what we tried
-last week, it moves there.
+last week, it moves there. It also keeps the setup ceremony's full September
+narration, moved out of VISION.
 
 `setup/` — the OLD setup flow, parked 2026-09-02 when setup was folded INTO
 the game screen as phases (see DESIGN, "Setup IS the game"): `nostr.js` (the
@@ -11,8 +12,9 @@ card hosting the angle picker, the wake button, the continue path), `stage.js`
 (the setup screens' window into the game — a real sim and renderer borrowed
 for geometry, the night, the sky, chrome that dodged the pointer) and `fade.js`
 (its arrival/chase eases). Their imports point at `../render.js` etc. — restore
-to `lib/setup/` to revive. The picker (`lib/setup/angle.js`) stayed in place
-for the angle phase.
+to `lib/setup/` to revive, and expect drift: `confirm.js` imports
+`lookupProfile`, which `identity.js` no longer exports. The picker
+(`lib/setup/angle.js`) stayed in place for the angle phase.
 
 The first-person 3D world view, pulled out of the app (2026-07-13) to keep
 the focus on gameplay. Working state at park time; kept as a template base

@@ -7,22 +7,26 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import {
   createSim,
+  worldKeyFor,
+  SEED_ANGLE,
   SUPER_TO_PARENT_DIR,
   EDGE_CENTER,
   edgeTilesInto,
   superIndexOf,
-  isSeamHex,
-  seamLobesOf,
+  isRiverHex,
+  riverLobesOf,
   gateEdgeFor,
   GATE_EDGE,
   SUPER,
   RINGS,
   RULES,
   LEAP,
-  SEAM_RING,
+  RIVER_RING,
   VIEW_RING,
   GATE_TILE,
   BOARD_TILES,
+  BITE_TILES,
+  EDGE_RIVER,
   ENERGY_START,
   SEED_MIN,
   FREE_CAP,
@@ -35,10 +39,26 @@ import {
   readingOrder,
   TILE_TYPES,
   RECIPES,
+  RAFT_NEEDS,
+  WALL_DROP,
   RESOURCES,
   BIOME_YIELD,
   NODE_DENSITY,
+  bareDays,
   tagOf,
+  dishOf,
+  dishDef,
+  comboOf,
+  COMBOS,
+  COOK_MIN,
+  COOK_KIND_MIN,
+  COOK_SERVING_MIN,
+  COOK_SERVINGS,
+  FUEL_COOKS,
+  FUEL,
+  COOK_FUEL,
+  COOK_MULT,
+  MEAL_SHELF_MIN,
   STAT_NAMES,
   statsOf,
   BIOME_SKILL,
@@ -46,6 +66,7 @@ import {
   SKILL_CAP,
   NPC_MIN,
   NPC_MAX,
+  MASTERY,
   PLACE_CAP,
   edgesForLevel
 } from "../lib/sim.js"
@@ -104,20 +125,20 @@ test("superIndexOf is safe off the lattice and covers all six boards", () => {
   SUPER.forEach(([q, r], i) => assert.equal(superIndexOf(q, r), i))
 })
 
-test("the seam is exactly one tile thick and partitions cleanly", () => {
-  // my seam ring: every ring-(RINGS+1) hex is seam (side or junction), owned by no board
+test("the river row is exactly one tile thick and partitions cleanly", () => {
+  // my river ring: every ring-(RINGS+1) hex is river (side or confluence), in no board
   let side = 0
-  let junction = 0
-  for (const h of Hex.ring([0, 0], SEAM_RING)) {
-    assert.ok(isSeamHex(h), `ring-${SEAM_RING} hex ${h} is not seam`)
-    assert.equal(superIndexOf(h[0], h[1]), -1, `seam hex ${h} owned by a board`)
-    const lobes = seamLobesOf(h)
+  let confluence = 0
+  for (const h of Hex.ring([0, 0], RIVER_RING)) {
+    assert.ok(isRiverHex(h), `ring-${RIVER_RING} hex ${h} is not river`)
+    assert.equal(superIndexOf(h[0], h[1]), -1, `river hex ${h} falls in a board`)
+    const lobes = riverLobesOf(h)
     if (lobes.length === 1) side++
-    else if (lobes.length === 2) junction++
-    else assert.fail(`seam hex ${h} has ${lobes.length} lobes`)
+    else if (lobes.length === 2) confluence++
+    else assert.fail(`river hex ${h} has ${lobes.length} lobes`)
   }
   assert.equal(side, 24) // 4 side tiles per shared edge
-  assert.equal(junction, 6) // 1 junction tile per parent vertex
+  assert.equal(confluence, 6) // 1 confluence tile per parent vertex
   // interiors never touch: no interior hex is adjacent to a neighbour's interior
   for (const h of Hex.ring([0, 0], RINGS)) {
     for (const n of Hex.neighbors(h)) {
@@ -128,14 +149,14 @@ test("the seam is exactly one tile thick and partitions cleanly", () => {
 
 // ── fuzzing helpers ──────────────────────────────────
 // Enumerate currently-valid actions the UI could produce. The field is the
-// interior, the seam, and the neighbours' facing rows; every hex is scouted /
+// interior, the river ring, and the neighbours' facing rows; every hex is scouted /
 // moved-onto alike (moving onto a neighbour's tile crosses).
 function candidates(sim) {
   const out = []
   const v = sim.view()
   for (const d of Hex.range(VIEW_RING)) {
     const h = [v.player[0] + d[0], v.player[1] + d[1]]
-    if (!sim.kindOf(h)) continue
+    if (!sim.onMap(h)) continue
     if (sim.canMove(h) && !Hex.equals(h, v.player)) out.push({ type: "move", target: h })
     else if (sim.isFrontier(h) && sim.canScout(h)) out.push({ type: "scout", target: h })
   }
@@ -156,24 +177,26 @@ function candidates(sim) {
   return out
 }
 
-// Serializable signature of the whole world tree (discovery, edges, props).
-function worldSig(tile, path = "root", out = []) {
-  out.push({
-    path,
-    discovered: [...tile.discovered].sort(),
-    seams: [...tile.seamDiscovered].sort(),
-    reached: [...tile.reachedEdges].sort(),
-    safe: tile.safe,
-    walls: Object.entries(tile.walls)
-      .filter(([, b]) => b)
-      .sort(),
-    seamWalls: Object.entries(tile.seamWalls)
-      .filter(([, b]) => b)
-      .sort(),
-    gate: tile.gate || null,
-    gateOpen: !!tile.gateOpen
-  })
-  for (const k of Object.keys(tile.children).sort()) worldSig(tile.children[k], path + "/" + k, out)
+// Serializable signature of the whole world: the ground at every depth
+// (discovery, walls, keyed by global coord) and the tree's board props (edges,
+// safe, gate).
+function worldSig(sim) {
+  const out = []
+  for (let d = 0; d <= sim.depth(); d++) {
+    const g = sim.ground(d)
+    out.push({
+      depth: d,
+      discovered: [...g.discovered].sort(),
+      walls: Object.entries(g.walls)
+        .filter(([, bits]) => bits)
+        .sort()
+    })
+  }
+  const boards = (tile, path) => {
+    out.push({ path, reached: [...tile.reachedEdges].sort(), safe: tile.safe, gate: tile.gate || null, gateOpen: !!tile.gateOpen })
+    for (const k of Object.keys(tile.children).sort()) boards(tile.children[k], path + "/" + k)
+  }
+  boards(sim.root(), "root")
   return out
 }
 
@@ -182,7 +205,7 @@ function worldSig(tile, path = "root", out = []) {
 // and when a day runs dry, go home to refill and resume. Deterministic per seed.
 function clearHome(sim, rng) {
   const home = sim.view().tile
-  for (let guard = 0; guard < 8000 && home.discovered.size < BOARD_TILES; guard++) {
+  for (let guard = 0; guard < 8000 && sim.foundOn([0, 0]) < BOARD_TILES; guard++) {
     const opts = candidates(sim)
     const scouts = opts.filter(o => o.type === "scout")
     if (scouts.length) {
@@ -197,34 +220,52 @@ function clearHome(sim, rng) {
     // out of affordable work for today — rest at home and pick it up tomorrow
     sim.dispatch({ type: "goHome" })
   }
-  assert.equal(home.discovered.size, BOARD_TILES, "failed to clear the home board")
+  assert.equal(sim.foundOn([0, 0]), BOARD_TILES, "failed to clear the home board")
   // leave the player rested at home with a full day ahead — callers venture out
   // from here (home is no longer free, so the clearing day itself ends depleted)
   sim.dispatch({ type: "goHome" })
   return home
 }
 
-// RIVERS (RULES 30): every seam is water. Wading in is free enough, but the far
+// RIVERS (RULES 30): the row between boards is water. Wading in is free enough, but the far
 // bank needs a BRIDGE — so anything that plays outside home builds one first.
 // Walks to a river tile that touches another board and spans it. Returns the
 // landing tile, or null if there's nothing to bridge to yet.
 // THE WAY OUT of a walled home under RULES 30: through the gate, into the one
-// river tile beyond it, and onto a RAFT. The raft is what the wall's debris
+// river tile beyond it, and onto a RAFT. The raft is what the wall's kit
 // pays for, and it's what stops a board being a prison — the water always goes
 // somewhere. Punts along the river until a foreign bank is landable, and lands.
 // Returns the landing tile, or null if the water led nowhere it could reach.
-// OUT THE GATE, WITH THE LOAD — the trip every test that leaves home makes
-// (RULES 33). Onto the doorstep, where the felled wall left its debris; pick one
-// load up (it fills a base pack on its own, so the next step costs double);
-// wade into the one river tile past the gate; drop it there, and build the raft
-// out of what's now lying on the tile. Returns the water you're afloat on.
+// FERRY a bill of materials from one tile to another, in as many trips as the
+// pack needs (RULES 55: the raft's timber outweighs a base pack). Takes what
+// fits, walks it over, puts it down, comes back for the rest.
+function ferry(sim, from, to, needs) {
+  const left = { ...needs }
+  while (Object.values(left).some(n => n > 0)) {
+    if (!Hex.equals(sim.view().player, from) && !sim.dispatch({ type: "move", target: from }).ok) return false
+    let took = 0
+    for (const k of Object.keys(left)) {
+      while (left[k] > 0 && sim.canAct({ type: "take", item: k })) {
+        if (!sim.dispatch({ type: "take", item: k }).ok) return false
+        left[k]--
+        took++
+      }
+    }
+    if (!took) return false // nothing fits, or the pile ran dry — the ferry can't finish
+    if (!sim.dispatch({ type: "move", target: to }).ok) return false
+    for (const k of Object.keys(needs)) while (sim.dispatch({ type: "drop", item: k }).ok);
+  }
+  return true
+}
+// OUT THE GATE, WITH THE MATERIALS — the trip every test that leaves home makes.
+// Onto the doorstep, where the felled wall left its starting kit; ferry the
+// raft's bill over to the one river tile past the gate; build it out of the heap
+// now lying there. Returns the water you're afloat on.
 function raftOut(sim) {
   const doorstep = Hex.fromKey(GATE_EDGE.k)
   if (!sim.dispatch({ type: "move", target: doorstep }).ok) return null
-  if (!sim.dispatch({ type: "take" }).ok) return null
   if (!sim.isDiscovered(GATE_TILE) && !sim.dispatch({ type: "scout", target: GATE_TILE }).ok) return null
-  if (!sim.dispatch({ type: "move", target: GATE_TILE }).ok) return null
-  if (!sim.dispatch({ type: "drop", item: "debris" }).ok) return null
+  if (!ferry(sim, doorstep, GATE_TILE, RAFT_NEEDS)) return null
   if (!sim.dispatch({ type: "raft" }).ok) return null
   return sim.view().player.slice()
 }
@@ -272,7 +313,7 @@ function stateSig(sim) {
     trail: v.trail,
     parentPlayer: p.player,
     parentTrail: p.trail,
-    world: worldSig(sim.root())
+    world: worldSig(sim)
   })
 }
 
@@ -298,7 +339,7 @@ function fuzz(sim, rng, steps, { allowRest = true } = {}) {
       const pb = sim.boardHexOf(sim.view().player)
       if (tb && (!pb || tb[0] !== pb[0] || tb[1] !== pb[1])) seen.add("cross")
     }
-    const sizeBefore = sim.view().tile.discovered.size
+    const foundBefore = sim.ground().discovered.size
     const r = sim.dispatch(a)
     assert.ok(r.ok, `enumerated action rejected: ${JSON.stringify(a)} (${r.reason})`)
     // Invariant 1: energy never negative, never above the DAY'S budget (which
@@ -323,7 +364,7 @@ function fuzz(sim, rng, steps, { allowRest = true } = {}) {
       )
     }
     // Invariant 3: the discovery ratchet only grows.
-    assert.ok(sim.view().tile.discovered.size >= Math.min(sizeBefore, sim.view().tile.discovered.size), "ratchet")
+    assert.ok(sim.ground().discovered.size >= foundBefore, "ratchet")
     // Invariant 4: the trail is a connected walk of legal move segments —
     // adjacent steps or diagonal leaps; no gaps, ever
     const diagLeap = (p, q2) =>
@@ -364,10 +405,10 @@ test("energy, reserve and ratchet invariants hold under random play", () => {
   }
 })
 
-// ── the gate: the seed angle's seam tile, closed until home is cleared ──
+// ── the gate: the seed angle's river tile, closed until home is cleared ──
 test("the gate opens on clearing home, and is the only way through the walls", () => {
-  assert.equal(Hex.length(GATE_TILE), SEAM_RING, "gate does not open onto the seam ring")
-  assert.ok(isSeamHex(GATE_TILE), "gate does not open onto a seam tile")
+  assert.equal(Hex.length(GATE_TILE), RIVER_RING, "gate does not open onto the river ring")
+  assert.ok(isRiverHex(GATE_TILE), "gate does not open onto a river tile")
   assert.equal(Hex.length(Hex.fromKey(GATE_EDGE.k)), RINGS, "doorstep is not a border tile")
   assert.deepEqual(gateEdgeFor(1), GATE_EDGE)
 
@@ -389,14 +430,14 @@ test("the gate opens on clearing home, and is the only way through the walls", (
   const doorstep = Hex.fromKey(GATE_EDGE.k)
   assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok, "cannot reach the doorstep")
   assert.equal(home.gateOpen, true, "gate did not open on standing at the doorstep")
-  // the wall that came down left its debris right here (RULES 33) — the load the
-  // raft is made of, and the reason the doorstep is where a haul starts
-  assert.deepEqual(sim.stashHere(), { item: "debris", n: 3 }, "the felled wall left no rubble")
-  assert.ok(sim.dispatch({ type: "take" }).ok, "could not pick up a load of debris")
+  // the wall that came down left a STARTING KIT right here (RULES 55) — some of
+  // every material, and where the raft's own bill comes from
+  assert.deepEqual(sim.stashHere(), Object.entries(WALL_DROP).map(([item, n]) => ({ item, n })), "the felled wall left no kit")
+  assert.ok(sim.dispatch({ type: "take", item: "cord" }).ok, "could not pick a length of cord out of the kit")
   assert.ok(sim.canScout(GATE_TILE), "open gate not scoutable")
   for (const n of Hex.neighbors(doorstep)) {
-    if (Hex.length(n) === SEAM_RING && !Hex.equals(n, GATE_TILE)) {
-      assert.equal(sim.canScout(n), false, `sealed seam ${n} is scoutable`)
+    if (Hex.length(n) === RIVER_RING && !Hex.equals(n, GATE_TILE)) {
+      assert.equal(sim.canScout(n), false, `sealed river ${n} is scoutable`)
     }
   }
 
@@ -405,9 +446,10 @@ test("the gate opens on clearing home, and is the only way through the walls", (
   assert.ok(sim.dispatch({ type: "move", target: GATE_TILE }).ok)
   const nbr = Hex.neighbors(GATE_TILE).find(n => superIndexOf(n[0], n[1]) >= 0)
   assert.ok(sim.dispatch({ type: "scout", target: nbr }).ok)
-  assert.ok(!sim.canAct({ type: "raft" }), "a raft built out of nothing") // the load must be ON the water
-  assert.ok(sim.dispatch({ type: "drop", item: "debris" }).ok, "the load would not go down")
-  assert.ok(sim.dispatch({ type: "raft" }).ok, "raft refused") // RULES 30: the seam is a river — you need the raft
+  assert.ok(!sim.canAct({ type: "raft" }), "a raft built out of nothing") // one cord is not a raft
+  assert.ok(sim.dispatch({ type: "drop", item: "cord" }).ok, "the cord would not go down")
+  assert.ok(ferry(sim, Hex.fromKey(GATE_EDGE.k), GATE_TILE, RAFT_NEEDS), "could not ferry the raft's bill to the water")
+  assert.ok(sim.dispatch({ type: "raft" }).ok, "raft refused") // RULES 30: a river — you need the raft
   assert.ok(sim.dispatch({ type: "move", target: nbr }).ok)
   assert.notEqual(sim.view().tile, home, "did not cross through the gate")
 })
@@ -420,15 +462,13 @@ test("the raft is the crossing — and crossing discovers the parent tile", () =
   // out to the one river tile a walled board can reach: the one past the gate
   const doorstep = Hex.fromKey(GATE_EDGE.k)
   assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok)
-  assert.ok(sim.dispatch({ type: "take" }).ok, "no load of debris on the doorstep") // RULES 33: the haul
   assert.ok(sim.dispatch({ type: "scout", target: GATE_TILE }).ok)
-  assert.ok(sim.dispatch({ type: "move", target: GATE_TILE }).ok)
-  const seamHex = sim.view().player.slice()
-  assert.equal(sim.kindOf(seamHex), "seam", "the tile past the gate is river")
-  assert.ok(sim.dispatch({ type: "drop", item: "debris" }).ok, "the load would not go down on the water")
+  assert.ok(ferry(sim, doorstep, GATE_TILE, RAFT_NEEDS), "could not ferry the raft's bill to the water")
+  const riverHex = sim.view().player.slice()
+  assert.ok(sim.isRiver(riverHex), "the tile past the gate is river")
 
   // see across, pick a bank, and be refused until it's spanned
-  const crossTarget = Hex.neighbors(seamHex).find(n => {
+  const crossTarget = Hex.neighbors(riverHex).find(n => {
     const b = sim.boardHexOf(n)
     if (!b || (b[0] === 0 && b[1] === 0)) return false
     if (!sim.isDiscovered(n)) sim.dispatch({ type: "scout", target: n })
@@ -440,28 +480,28 @@ test("the raft is the crossing — and crossing discovers the parent tile", () =
   const home = sim.view().tile
   const targetBoard = sim.boardHexOf(crossTarget)
   assert.equal(
-    sim.parentOf().tile.discovered.has(`${targetBoard[0]},${targetBoard[1]}`),
+    sim.ground(sim.depth() - 1).discovered.has(`${targetBoard[0]},${targetBoard[1]}`),
     false,
     "parent tile known too early"
   )
   assert.ok(sim.dispatch({ type: "raft" }).ok, "raft refused")
-  assert.deepEqual(sim.raftAt(), seamHex, "the raft is moored where it was built")
+  assert.deepEqual(sim.raftAt(), riverHex, "the raft is moored where it was built")
   assert.ok(sim.aboard(), "standing on your own raft")
 
-  const route = [seamHex, crossTarget]
+  const route = [riverHex, crossTarget]
   const trailBefore = sim.view().trail.length
   assert.ok(sim.dispatch({ type: "move", target: crossTarget }).ok, "crossing rejected from the raft")
-  assert.deepEqual(sim.raftAt(), seamHex, "the raft stays moored where you stepped ashore")
+  assert.deepEqual(sim.raftAt(), riverHex, "the raft stays moored where you stepped ashore")
   assert.equal(sim.aboard(), false, "…and you are no longer on it")
   // one world: the player IS the target — no translation, no re-framing
   assert.deepEqual(sim.view().player, crossTarget)
   assert.notEqual(sim.view().tile, home, "board bookkeeping did not follow")
   assert.equal(sim.depth(), 2, "crossing must not change depth")
-  assert.ok(sim.parentOf().tile.discovered.has(`${targetBoard[0]},${targetBoard[1]}`), "parent tile not discovered")
+  assert.ok(sim.ground(sim.depth() - 1).discovered.has(`${targetBoard[0]},${targetBoard[1]}`), "parent tile not discovered")
   assert.deepEqual(sim.parentOf().player, targetBoard, "parent player did not step")
   // the trail is continuous through the crossing (grew by the walked route)
   assert.ok(sim.view().trail.length > trailBefore, "trail did not continue through the crossing")
-  assert.ok(sim.isDiscovered(seamHex), "seam discovery lost")
+  assert.ok(sim.isDiscovered(riverHex), "river discovery lost")
 
   // and straight back: the same coordinates, the same world (a plain walk back —
   // no elastic retrace, the return records onto the trail)
@@ -499,7 +539,7 @@ test("the raft lands you anywhere — after sailing, not just where you boarded"
     if (hops < 2) continue // this world's water didn't run — try the next
     assert.ok(sim.aboard(), "the raft did not come along")
     assert.deepEqual(sim.raftAt(), sim.view().player, "…and should be moored under you")
-    const bank = Hex.neighbors(sim.view().player).find(n => !sim.isRiver(n) && sim.isDiscovered(n) && sim.kindOf(n))
+    const bank = Hex.neighbors(sim.view().player).find(n => !sim.isRiver(n) && sim.isDiscovered(n) && sim.onMap(n))
     assert.ok(bank, "no shore beside the raft two tiles out")
     assert.ok(sim.canMove(bank), "the reserve refused to let you off the raft")
     assert.ok(sim.dispatch({ type: "move", target: bank }).ok, "landing rejected")
@@ -511,17 +551,18 @@ test("the raft lands you anywhere — after sailing, not just where you boarded"
 })
 
 // THE SHALLOWS ARE WATER, AND WATER IS A PLACE (RULES 34/35). Board water of
-// deepness 0 reads exactly like a river: a raft crosses it, and ON FOOT you can
+// elevation 0 reads exactly like a river: a raft crosses it, and ON FOOT you can
 // wade in from a bank and stand there — with the river's own dead end, so the
 // only way out is the bank you came in by. Standing in it is what makes it
 // somewhere you could build a boat.
 test("the shallows: a raft crosses them, a wader may stand in them and only back out", () => {
   // a keyed world, or there is no terrain at all — and so no water to cross
   for (const c of "0123456789abcdef") {
-    const sim = createSim({ pubkey: c.repeat(64), worldKey: "abcdef01".repeat(8) })
+    const sim = createSim({ pubkey: c.repeat(64), worldKey: worldKeyFor(c.repeat(64), SEED_ANGLE) })
     sim.dispatch({ type: "clearBoard" }) // home known, so the gate opens…
     sim.dispatch({ type: "goHome" }) // …and tomorrow can afford the trip
     sim.dispatch({ type: "clearMap" }) // fog off: only the RULES may refuse anything
+    sim.dispatch({ type: "rest" }) // …and a mapped world's whole day to sail it in
     if (!raftOut(sim)) continue
     // sail until a shallow tile is beside us
     let shallow = null
@@ -536,7 +577,7 @@ test("the shallows: a raft crosses them, a wader may stand in them and only back
     }
     if (!shallow) continue // this world had no shallows within reach — try the next
     assert.ok(sim.aboard(), "should still be on the raft")
-    assert.equal(sim.landAt(shallow).deepness, 0, "the shallows are deepness 0")
+    assert.equal(sim.landAt(shallow).elevation, 0, "the shallows are water at elevation 0")
     assert.ok(sim.canMove(shallow), "the raft was refused the shallows")
     assert.ok(sim.dispatch({ type: "move", target: shallow }).ok, "could not sail into the shallows")
     assert.deepEqual(sim.raftAt(), shallow, "the raft came along onto the shallows")
@@ -544,7 +585,7 @@ test("the shallows: a raft crosses them, a wader may stand in them and only back
     assert.ok(sim.homePath(), "no way home from the shallows")
     // ashore, and the raft is left on the water behind you. (A pool with no
     // landable rim proves nothing about stepping off — try another world.)
-    const bank = Hex.neighbors(shallow).find(n => sim.kindOf(n) && !sim.navWater(n) && sim.canMove(n))
+    const bank = Hex.neighbors(shallow).find(n => sim.onMap(n) && !sim.navWater(n) && sim.canMove(n))
     if (!bank) continue
     assert.ok(sim.dispatch({ type: "move", target: bank }).ok, "could not step ashore off the shallows")
     assert.deepEqual(sim.raftAt(), shallow, "the raft stayed where you left it")
@@ -564,13 +605,13 @@ test("the shallows: a raft crosses them, a wader may stand in them and only back
     // out of the water, so it's the first step of every route that must be it.)
     assert.ok(sim.canMove(bank), "cannot go back the way you waded in")
     for (const n of Hex.neighbors(wade)) {
-      if (!sim.kindOf(n) || !sim.isDiscovered(n) || Hex.equals(n, bank)) continue
+      if (!sim.onMap(n) || !sim.isDiscovered(n) || Hex.equals(n, bank)) continue
       const route = sim.routeTo(n)
       if (route && route.length > 1)
         assert.deepEqual(route[1], bank, `left the shallows straight for ${n} instead of back to the bank`)
     }
     // it is somewhere a boat could be raised: the tile answers the question and
-    // takes the load (what's missing is debris, and the raft you already have)
+    // takes the load (what's missing is the raft's bill, and the raft you already have)
     assert.ok(sim.raftPlan(), "the shallows offer no boat to build")
     assert.ok(sim.canStash(), "cannot put a load down in the shallows")
     return
@@ -578,7 +619,7 @@ test("the shallows: a raft crosses them, a wader may stand in them and only back
   assert.fail("no seed put shallow water within a raft's reach")
 })
 
-// The reported stranding, global edition: leave home, wander the seam network
+// The reported stranding, global edition: leave home, wander the river network
 // anywhere, and home must stay addressable — same coordinates, no frames.
 test("a river is a dead end: no step along it, none across it, only back (RULES 30)", () => {
   const sim = createSim()
@@ -591,20 +632,19 @@ test("a river is a dead end: no step along it, none across it, only back (RULES 
   assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok)
   assert.ok(sim.dispatch({ type: "scout", target: GATE_TILE }).ok)
   assert.ok(sim.dispatch({ type: "move", target: GATE_TILE }).ok)
-  assert.equal(sim.kindOf(sim.view().player), "seam")
   assert.ok(sim.inRiver(), "standing in the river")
 
-  // NOT ALONG: every seam neighbour is refused, discovered or not. You can SEE
+  // NOT ALONG: every river neighbour is refused, discovered or not. You can SEE
   // across the water (scouting works from in it), you just can't walk it.
   let testedAlong = 0
   for (const n of Hex.neighbors(GATE_TILE)) {
-    if (sim.kindOf(n) !== "seam") continue
+    if (!sim.isRiver(n)) continue
     if (!sim.isDiscovered(n)) sim.dispatch({ type: "scout", target: n })
     if (!sim.isDiscovered(n)) continue
     testedAlong++
     assert.equal(sim.canMove(n), false, `stepped river → river at ${n}`)
   }
-  assert.ok(testedAlong > 0, "no seam neighbour was actually tested")
+  assert.ok(testedAlong > 0, "no river neighbour was actually tested")
 
   // NOT ACROSS: the far bank needs a bridge, however well you can see it
   let testedAcross = 0
@@ -623,10 +663,10 @@ test("a river is a dead end: no step along it, none across it, only back (RULES 
   assert.ok(sim.canMove(doorstep), "the bank you came from must always be there")
   assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok)
   assert.equal(sim.view().tile, home)
-  assert.equal(sim.kindOf(sim.view().player), "in")
+  assert.ok(sim.boardHexOf(sim.view().player), "back on the board")
 })
 
-// ── world derivation: the key inscribed on the home board ─────────
+// ── world derivation: the key and the angle ─────────
 test("the spiral covers the board once, centre-out, ring by ring", () => {
   const spiral = spiralOrder()
   assert.equal(spiral.length, BOARD_TILES)
@@ -658,25 +698,12 @@ test("reading order covers the board once, top-left to bottom-right", () => {
   }
 })
 
-test("a pubkey inscribes the home board and binds the save", () => {
+test("a pubkey binds the save, and home stays flat-priced ground", () => {
   const pk = "f" + "0123456789abcdef".repeat(3) + "0123456789abcdef".slice(0, 15) // exactly 64 chars
   assert.equal(pk.length, 64)
   const sim = createSim({ pubkey: pk })
-  // reading order: char 0 = 'f' at the top-left tile, char 1 = '0' beside it
-  assert.equal(sim.nibbleAt([0, -RINGS]), "f")
-  assert.equal(sim.nibbleAt([1, -RINGS]), "0")
-  // the centre holds the key's middle four (the same inscription also drives
-  // the world's BASE field — home never rolls open water regardless)
-  assert.equal(sim.nibbleAt([0, 0]), pk.slice(30, 34))
-  assert.ok(sim.typeNameAt([0, 0]) in TILE_TYPES)
-  assert.notEqual(sim.typeNameAt([0, 0]), "water")
-  // every key char lands somewhere: 60 singles + the centre's four
-  const chars = readingOrder()
-    .map(t => sim.nibbleAt(t))
-    .join("")
-  assert.equal(chars.length, 64)
-  assert.equal([...chars].sort().join(""), [...pk].sort().join(""), "inscription lost or duplicated chars")
-  // the inscription is home-only: a keyless sim stays plain
+  // the pubkey alone derives no land: without a world key the ground is plain
+  assert.equal(sim.typeNameAt([0, 0]), "plain")
   assert.equal(createSim().typeNameAt([0, 0]), "plain")
   // home is safe — every step/scout there costs a flat minute, and the derived
   // biome type must not change that (no biome multipliers inside home). Day
@@ -693,13 +720,18 @@ test("a pubkey inscribes the home board and binds the save", () => {
   const save = sim.serialize()
   assert.equal(save.world.pubkey, pk)
   assert.ok(createSim({ pubkey: pk }).hydrate(JSON.parse(JSON.stringify(save))).ok)
-  assert.equal(createSim().hydrate(save).ok, false, "a keyless sim must refuse an inscribed world's save")
+  assert.equal(createSim().hydrate(save).ok, false, "a keyless sim must refuse a keyed world's save")
 })
 
-// Terrain: the pubkey shapes the base field, the world key textures it —
-// deterministic, world-wide, save-bound.
-test("pubkey + world key derive deterministic biomes and bind the save", () => {
+// Terrain: the world key shapes the base field AND textures it —
+// deterministic, world-wide, save-bound. The world key is the key and the
+// angle: the same pair is the same world, another angle another world.
+test("the key and the angle derive one deterministic world and bind the save", () => {
   const pk = "f" + "0123456789abcdef".repeat(3) + "0123456789abcdef".slice(0, 15)
+  assert.equal(worldKeyFor(pk, 137), worldKeyFor(pk, 137), "the same key and angle must be the same world key")
+  assert.ok(/^[0-9a-f]{64}$/.test(worldKeyFor(pk, 137)))
+  assert.notEqual(worldKeyFor(pk, 137), worldKeyFor(pk, 138), "another angle must be another world")
+  assert.notEqual(worldKeyFor(pk, 137), worldKeyFor("7".repeat(64), 137), "another key must be another world")
   const wk = "e" + "9b3d0af2c4715068".repeat(3) + "9b3d0af2c471506" // 64 chars
   assert.equal(wk.length, 64)
   const a = createSim({ pubkey: pk, worldKey: wk })
@@ -708,16 +740,34 @@ test("pubkey + world key derive deterministic biomes and bind the save", () => {
   const samples = []
   for (const t of Hex.range(RINGS)) samples.push(t)
   for (const t of [[10, -5], [21, -10], [-20, 10], [9, 4], [-11, -4]]) {
-    if (a.kindOf(t) === "in") samples.push(t)
+    if (a.boardHexOf(t)) samples.push(t)
   }
   const biomesA = samples.map(t => a.typeNameAt(t))
   const biomesB = samples.map(t => b.typeNameAt(t))
   assert.deepEqual(biomesA, biomesB, "same keys must derive the same world")
   for (const t of biomesA) assert.ok(t in TILE_TYPES, `unknown biome ${t}`)
   assert.ok(new Set(biomesA).size >= 2, "terrain came out uniform — derivation looks dead")
-  // a different world key re-textures; a different pubkey reshapes
+  // a different world key reshapes; the pubkey alone touches no land
   assert.notDeepEqual(samples.map(t => createSim({ pubkey: pk, worldKey: "0".repeat(63) + "1" }).typeNameAt(t)), biomesA)
-  assert.notDeepEqual(samples.map(t => createSim({ pubkey: "7".repeat(64), worldKey: wk }).typeNameAt(t)), biomesA)
+  assert.deepEqual(samples.map(t => createSim({ pubkey: "7".repeat(64), worldKey: wk }).typeNameAt(t)), biomesA)
+  // THE BOARDS AROUND HOME ARE THE ANGLE'S: their ground sits at a different
+  // height from one angle to the next — not just re-textured (it used to be
+  // the pubkey's, the same at every angle give or take ±7.5·DETAIL)
+  const meanHeights = angle => {
+    const s = createSim({ angle, pubkey: pk, worldKey: worldKeyFor(pk, angle) })
+    const out = new Map()
+    for (const c of Hex.neighbors([0, 0])) {
+      if (!s.boardInfo(c)) continue
+      const ctr = s.centreOf(c)
+      const hs = Hex.range(RINGS).map(t => s.heightAt([ctr[0] + t[0], ctr[1] + t[1]]))
+      out.set(Hex.key(c), hs.reduce((x, y) => x + y, 0) / hs.length)
+    }
+    return out
+  }
+  const hA = meanHeights(137)
+  const hB = meanHeights(211)
+  const shift = Math.max(...[...hA].filter(([k]) => hB.has(k)).map(([k, v]) => Math.abs(v - hB.get(k))))
+  assert.ok(shift >= 2, `home's neighbour boards must change their land with the angle (max shift ${shift.toFixed(2)})`)
   // keyless sims stay plain; the save stamp binds both keys
   assert.equal(createSim().typeNameAt([2, -1]), "plain")
   const save = a.serialize()
@@ -780,7 +830,7 @@ test("every board keeps a person: childkey identity, key-read stats", () => {
 // distance while every tile around them routed fine.
 test("a board centre is never water, whatever biome it derives", () => {
   // this key/world pair puts a water biome on the centre of board [-1,-1]
-  const sim = createSim({ pubkey: "5".repeat(64), worldKey: "abcdef01".repeat(8) })
+  const sim = createSim({ pubkey: "5".repeat(64), worldKey: worldKeyFor("5".repeat(64), 0) })
   const ctr = sim.centreOf([-1, -1])
   assert.equal(sim.typeNameAt(ctr), "water", "the fixture must actually derive water here")
   assert.equal(sim.isShallow(ctr), false, "a centre must never read as shallow water")
@@ -803,7 +853,7 @@ test("a board centre is never water, whatever biome it derives", () => {
 // neighbours are accepted. Nothing should ever route to a figure's doorstep and
 // then refuse the last step for a reason the doorstep doesn't share.
 test("no centre is unreachable while the tiles around it are reachable", () => {
-  const sim = createSim({ pubkey: "5".repeat(64), worldKey: "abcdef01".repeat(8) })
+  const sim = createSim({ pubkey: "5".repeat(64), worldKey: worldKeyFor("5".repeat(64), 0) })
   sim.dispatch({ type: "clearBoard" })
   sim.dispatch({ type: "rest" })
   sim.dispatch({ type: "clearMap" })
@@ -830,18 +880,16 @@ test("every world can teach you to 12 in all twelve skills, and no further", () 
     const sim = createSim({ pubkey: "7".repeat(64), worldKey: wk })
     const best = {}
     const masters = {}
-    for (let q = -RINGS; q <= RINGS; q++)
-      for (let r = -RINGS; r <= RINGS; r++) {
-        if (Math.max(Math.abs(q), Math.abs(r), Math.abs(-q - r)) > RINGS) continue
-        const npc = sim.npcAt([q, r])
-        if (!npc) continue
-        if (npc.mastery) masters[npc.mastery] = (masters[npc.mastery] || 0) + 1
-        for (const s of STAT_NAMES) {
-          const lvl = sim.npcSkill(npc, s) // untaught: they sit at their nature
-          assert.ok(lvl >= NPC_MIN && lvl <= NPC_MAX, `${s} at ${lvl} on ${q},${r} — outside the band`)
-          best[s] = Math.max(best[s] || 0, lvl)
-        }
+    for (const [q, r] of sim.boards()) {
+      const npc = sim.npcAt([q, r])
+      if (!npc) continue
+      if (npc.mastery) masters[npc.mastery] = (masters[npc.mastery] || 0) + 1
+      for (const s of STAT_NAMES) {
+        const lvl = sim.npcSkill(npc, s) // untaught: they sit at their nature
+        assert.ok(lvl >= NPC_MIN && lvl <= NPC_MAX, `${s} at ${lvl} on ${q},${r} — outside the band`)
+        best[s] = Math.max(best[s] || 0, lvl)
       }
+    }
     for (const s of STAT_NAMES) {
       assert.equal(best[s], NPC_MAX, `world ${wk.slice(0, 8)} has no ${s} teacher at ${NPC_MAX}`)
       assert.equal(masters[s], 1, `world ${wk.slice(0, 8)} has ${masters[s]} masters of ${s}, want exactly 1`)
@@ -866,15 +914,15 @@ test("every world can teach you to 12 in all twelve skills, and no further", () 
   assert.ok(NPC_MAX < SKILL_CAP, "the band must leave levels for practice to earn")
 })
 
-test("lessons: a nearby figure teaches what it outranks you in; the save replays it", () => {
+test("lessons: a nearby figure teaches what it outranks you in, drained below 12; from 12 teaching is free; the save replays it", () => {
   const pk = "f" + "0123456789abcdef".repeat(3) + "0123456789abcdef".slice(0, 15)
-  const wk = "e" + "9b3d0af2c4715068".repeat(3) + "9b3d0af2c471506"
+  const wk = worldKeyFor(pk, 3) // a world whose gate lands on dry ground
   const sim = createSim({ pubkey: pk, worldKey: wk })
   clearHome(sim, makeRng(3))
   assert.equal(sim.learnable().length, 0, "home has no teacher")
-  // out the gate and straight across the seam into the neighbour board
+  // out the gate and straight across the river into the neighbour board
   const doorstep = Hex.fromKey(GATE_EDGE.k)
-  assert.ok(raftOut(sim), "could not raft out of home") // RULES 30/33: the seam is water, and the raft is a haul
+  assert.ok(raftOut(sim), "could not raft out of home") // RULES 30/33: the river is water, and the raft is a haul
   const dir = [GATE_TILE[0] - doorstep[0], GATE_TILE[1] - doorstep[1]]
   const landing = [GATE_TILE[0] + dir[0], GATE_TILE[1] + dir[1]]
   assert.ok(sim.dispatch({ type: "scout", target: landing }).ok)
@@ -889,10 +937,28 @@ test("lessons: a nearby figure teaches what it outranks you in; the save replays
   assert.ok(npc, "the board keeps no figure")
   const ls = sim.learnable()
   assert.ok(ls.length > 0, "the figure has nothing to teach")
-  // the lowest-level teachable skill — fewest edges (lessons) to climb a level
-  const skill = ls.reduce((a, b) => (b.at < a.at ? b : a)).skill
+  // the lowest-level teachable skill below 12 — fewest edges (lessons) to climb a level
+  const skill = ls.filter(l => l.teacher < MASTERY).reduce((a, b) => (b.at < a.at ? b : a)).skill
   const before = sim.skillOf(skill)
-  assert.ok(sim.npcSkill(npc, skill) > before, "teacher must outrank the student")
+  const teacherAt = sim.npcSkill(npc, skill)
+  assert.ok(teacherAt > before, "teacher must outrank the student")
+  // TOTAL edges from level 0 — the currency a lesson moves out of the teacher
+  const edgeSum = p => {
+    let e = p.filled + p.partial
+    for (let l = 0; l < p.level; l++) e += edgesForLevel(l)
+    return e
+  }
+  // out of the day's budget — sleep at home, walk back out, try once more
+  const sitting = a => sim.dispatch(a).ok || (sim.dispatch({ type: "goHome" }).ok && sim.dispatch({ type: "move", target: stand }).ok && sim.dispatch(a).ok)
+  // home's neighbour sits on a pentagon, so it MASTERS one skill: a lesson in
+  // that one costs the master nothing
+  assert.equal(sim.npcSkill(npc, npc.mastery), MASTERY, "the pentagon's figure should master its skill")
+  const masterBefore = edgeSum(sim.npcProgress(npc, npc.mastery))
+  assert.ok(sitting({ type: "learn", skill: npc.mastery }), "the master refused a lesson")
+  assert.equal(edgeSum(sim.npcProgress(npc, npc.mastery)), masterBefore, "a lesson must not drain a master")
+  const theirEdges = () => edgeSum(sim.npcProgress(npc, skill))
+  const theirsBefore = theirEdges()
+  let lessons = 0
   // lessons cost minutes and raise the level; the clamp stops at the teacher.
   // A level now takes (level+1) whole edges, so allow plenty of lessons.
   let guard = 0
@@ -901,18 +967,30 @@ test("lessons: a nearby figure teaches what it outranks you in; the save replays
     const r = sim.dispatch({ type: "learn", skill })
     if (r.ok) {
       assert.ok(sim.energy() < e0, "a lesson must spend time")
+      lessons++
       continue
     }
     // out of the day's budget for this lesson — sleep at home, walk back out, keep going
     if (!sim.dispatch({ type: "goHome" }).ok || !sim.dispatch({ type: "move", target: stand }).ok) break
   }
   assert.ok(sim.skillOf(skill) > before, "lessons never raised the skill")
-  assert.ok(sim.skillOf(skill) <= sim.npcSkill(npc, skill), "learned past the teacher")
-  // the whole biography replays: hydrate rebuilds the same skills
+  assert.ok(sim.skillOf(skill) <= teacherAt, "learned past the teacher")
+  // below 12 the edge was THEIRS: the teacher drained one per lesson
+  assert.ok(Math.abs(theirsBefore - theirEdges() - lessons) < 1e-9, "a lesson must drain the teacher by exactly one edge")
+  // …and from 12 up a skill is KEPT: teaching copies the edge, it costs you none
+  assert.ok(sim.dispatch({ type: "setSkill", skill, level: MASTERY }).ok)
+  const yourEdges = () => edgeSum(sim.skillProgress(skill))
+  const yoursAt12 = yourEdges()
+  const theirsAt12 = theirEdges()
+  assert.ok(sitting({ type: "teach", skill }), "teach was refused")
+  assert.equal(yourEdges(), yoursAt12, "teaching from 12 must cost you nothing")
+  assert.ok(Math.abs(theirEdges() - theirsAt12 - 1) < 1e-9, "teaching must still give them one edge")
+  // the whole biography replays: hydrate rebuilds the same skills, on both sides
   const save = JSON.parse(JSON.stringify(sim.serialize()))
   const back = createSim({ pubkey: pk, worldKey: wk })
   assert.ok(back.hydrate(save).ok, "hydrate rejected a day with lessons")
   assert.equal(back.skillOf(skill), sim.skillOf(skill), "replayed skills diverged")
+  assert.equal(back.npcSkill(back.npcAt(npc.board), skill), sim.npcSkill(npc, skill), "replayed teacher diverged")
 })
 
 // Movement is ONLY the reserve: you may go anywhere you can reach and still walk
@@ -921,11 +999,11 @@ test("lessons: a nearby figure teaches what it outranks you in; the save replays
 // you have the margin to step to reachable ground and back.
 test("movement is exactly the reserve — a fully-seen ring never locks you in place", () => {
   const pk = "f" + "0123456789abcdef".repeat(3) + "0123456789abcdef".slice(0, 15)
-  const wk = "e" + "9b3d0af2c4715068".repeat(3) + "9b3d0af2c471506"
+  const wk = worldKeyFor(pk, 3) // a world whose gate lands on dry ground
   const sim = createSim({ pubkey: pk, worldKey: wk })
   clearHome(sim, makeRng(3))
   const doorstep = Hex.fromKey(GATE_EDGE.k)
-  assert.ok(raftOut(sim), "could not raft out of home") // RULES 30/33: the seam is water, and the raft is a haul
+  assert.ok(raftOut(sim), "could not raft out of home") // RULES 30/33: the river is water, and the raft is a haul
   const dir = [GATE_TILE[0] - doorstep[0], GATE_TILE[1] - doorstep[1]]
   const landing = [GATE_TILE[0] + dir[0], GATE_TILE[1] + dir[1]]
   assert.ok(sim.dispatch({ type: "scout", target: landing }).ok)
@@ -937,7 +1015,7 @@ test("movement is exactly the reserve — a fully-seen ring never locks you in p
   assert.ok(sim.energy() > sim.returnCost() + 5, "plenty of margin over the reserve")
   // NOT locked: some discovered neighbour is still movable, and every legal move
   // is EXACTLY the reserve rule — reach cost + the way home within the time left.
-  const nbrs = Hex.neighbors(sim.view().player).filter(n => sim.isDiscovered(n) && sim.kindOf(n))
+  const nbrs = Hex.neighbors(sim.view().player).filter(n => sim.isDiscovered(n) && sim.onMap(n))
   const movable = nbrs.filter(n => sim.canMove(n))
   assert.ok(movable.length > 0, "a fully-seen ring must not strand you — neighbours stay movable")
   for (const n of nbrs) {
@@ -963,9 +1041,9 @@ test.skip("teaching a figure raises it past its nature and COSTS you an edge; it
   const wk = "e" + "9b3d0af2c4715068".repeat(3) + "9b3d0af2c471506"
   const sim = createSim({ pubkey: pk, worldKey: wk })
   clearHome(sim, makeRng(3))
-  // out the gate and across the seam onto the neighbour board (same path lessons take)
+  // out the gate and across the river onto the neighbour board (same path lessons take)
   const doorstep = Hex.fromKey(GATE_EDGE.k)
-  assert.ok(raftOut(sim), "could not raft out of home") // RULES 30/33: the seam is water, and the raft is a haul
+  assert.ok(raftOut(sim), "could not raft out of home") // RULES 30/33: the river is water, and the raft is a haul
   const dir = [GATE_TILE[0] - doorstep[0], GATE_TILE[1] - doorstep[1]]
   const landing = [GATE_TILE[0] + dir[0], GATE_TILE[1] + dir[1]]
   assert.ok(sim.dispatch({ type: "scout", target: landing }).ok)
@@ -1036,7 +1114,7 @@ test.skip("teaching a figure raises it past its nature and COSTS you an edge; it
 
 test("water: visible from the shore, never underfoot", () => {
   const sim = createSim()
-  sim.parentOf().tile.types["0,-1"] = "water" // the stored-types hook (on the lattice owner): a pond beside the start
+  sim.ground().types["0,-1"] = "water" // the stored-types hook (the ground, global key): a pond beside the start
   assert.ok(sim.isFrontier([0, -1]), "the sea beside you must be scoutable")
   assert.ok(sim.dispatch({ type: "scout", target: [0, -1] }).ok)
   assert.equal(sim.canMove([0, -1]), false, "walked on water")
@@ -1062,8 +1140,8 @@ test("a chosen angle places the gate and binds the save to its world", () => {
   sim.dispatch({ type: "clearBoard" }) // clearing home opens the gate wherever it fell
   sim.dispatch({ type: "rest" }) // …and banks the 60 minutes home just earned for the trip out
   assert.ok(sim.dispatch({ type: "move", target: Hex.fromKey(edge.k) }).ok, "doorstep unreachable")
-  assert.ok(sim.dispatch({ type: "scout", target: edge.seam }).ok)
-  assert.ok(sim.dispatch({ type: "move", target: edge.seam }).ok, "the gate did not open at the chosen angle")
+  assert.ok(sim.dispatch({ type: "scout", target: edge.river }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: edge.river }).ok, "the gate did not open at the chosen angle")
   const save = sim.serialize()
   assert.equal(save.world.angle, a)
   assert.ok(createSim({ angle: a }).hydrate(JSON.parse(JSON.stringify(save))).ok)
@@ -1105,6 +1183,10 @@ test("progressive reload matches the reference hydrate and self-heals via-less s
   const r = await fast.hydrateProgressive(JSON.parse(raw))
   assert.ok(r.ok, `hydrateProgressive rejected: ${r.reason}`)
   assert.equal(stateSig(fast), stateSig(sim), "progressive reload diverged from the live world")
+  // …and the firsts with it — the exhaustion first included, which is written
+  // after an action runs, not before
+  assert.ok(sim.notes().some(n => n.id === "exhaustion"), "the fuzz never ran a day down — the firsts prove nothing")
+  assert.deepEqual(fast.notes(), sim.notes(), "the firsts diverged on reload")
 
   // self-heal: replaying stamped each move's route in, so the re-serialized save
   // now carries `via`, and a second progressive reload is idempotent
@@ -1152,7 +1234,7 @@ test("the leap is back — the diagonal for one step's price, dry ground only (R
   assert.equal(sim.routeTo(across).length, 3, "collinear 2-out must walk through the middle")
 })
 
-// …and the river still refuses it: a leap over the seam would be FORDING —
+// …and the river still refuses it: a leap over it would be FORDING —
 // bank to bank, feet dry, no river tile in the route. If any such hop were
 // legal the router would take it (one step beats punting every time), so the
 // way home going ON the water is proof no ford exists anywhere along it.
@@ -1164,7 +1246,7 @@ test("the leap never fords — the way home still crosses on the water (RULES 38
   assert.ok(home, "no route home from the far bank")
   assert.ok(
     home.some(t => sim.isRiver(t)),
-    "the route home skipped the river — a leap forded the seam"
+    "the route home skipped the river — a leap forded the river"
   )
 })
 
@@ -1178,15 +1260,14 @@ test("retracing home stays affordable at full depletion", () => {
   const rng = makeRng(5)
   clearHome(sim, rng)
   // over the river onto the next board, then keep walking away from home until
-  // nothing outward is affordable (RULES 30: the seam is no longer a road, so
+  // nothing outward is affordable (RULES 30: the river is not a road, so
   // the outing spends itself on real ground instead of along the water)
   assert.ok(crossOut(sim), "could not bridge out of home")
   for (let guard = 0; guard < 60; guard++) {
     const v0 = sim.view()
     const next = Hex.neighbors(v0.player).find(
       n =>
-        sim.kindOf(n) === "in" &&
-        !sim.isRiver(n) &&
+        sim.boardHexOf(n) &&
         !v0.trail.some(t => Hex.equals(t, n)) &&
         (sim.isDiscovered(n) || sim.canScout(n))
     )
@@ -1219,11 +1300,11 @@ test("at depletion the reserve alone governs — the way home holds, the unaffor
   sim.dispatch({ type: "move", target: doorstep })
   sim.dispatch({ type: "scout", target: GATE_TILE })
   sim.dispatch({ type: "move", target: GATE_TILE })
-  // walk out along the seam until nothing outward is affordable
+  // walk out along the river until nothing outward is affordable
   for (let guard = 0; guard < 60; guard++) {
     const v = sim.view()
     const next = Hex.neighbors(v.player).find(
-      n => sim.kindOf(n) === "seam" && !v.trail.some(t => Hex.equals(t, n)) && (sim.isDiscovered(n) || sim.canScout(n))
+      n => sim.isRiver(n) && !v.trail.some(t => Hex.equals(t, n)) && (sim.isDiscovered(n) || sim.canScout(n))
     )
     if (!next) break
     if (!sim.isDiscovered(next) && !sim.dispatch({ type: "scout", target: next }).ok) break
@@ -1238,7 +1319,7 @@ test("at depletion the reserve alone governs — the way home holds, the unaffor
   // every discovered tile in view: canMove agrees EXACTLY with the reserve rule
   for (const d of Hex.range(VIEW_RING)) {
     const h = [v.player[0] + d[0], v.player[1] + d[1]]
-    if (!sim.kindOf(h) || Hex.equals(h, v.player) || !sim.isDiscovered(h)) continue
+    if (!sim.onMap(h) || Hex.equals(h, v.player) || !sim.isDiscovered(h)) continue
     const route = sim.routeTo(h)
     const affordable = !!route && sim.pathCharge(route) + sim.returnFrom(h) <= sim.energy()
     assert.equal(sim.canMove(h), affordable, `canMove must equal the reserve rule at ${h[0]},${h[1]}`)
@@ -1249,7 +1330,7 @@ test("at depletion the reserve alone governs — the way home holds, the unaffor
   assert.ok(Hex.equals(sim.view().player, v.entry))
 })
 
-test("seam scouting respects the reserve outside the safe space", () => {
+test("river scouting respects the reserve outside the safe space", () => {
   let checked = 0
   for (const seed of [11, 222, 3333, 777]) {
     const sim = createSim()
@@ -1265,16 +1346,16 @@ test("seam scouting respects the reserve outside the safe space", () => {
       if (v.tile.safe) continue
       for (const d of [0, 1, 2, 3, 4, 5]) {
         const n2 = [v.player[0] + DIRS[d].q, v.player[1] + DIRS[d].r]
-        if (sim.kindOf(n2) !== "seam" || !sim.isFrontier(n2)) continue
+        if (!sim.isRiver(n2) || !sim.isFrontier(n2)) continue
         const affordable = sim.scoutCostAt(n2) + sim.returnCost() <= sim.energy()
         const r = sim.dispatch({ type: "scout", target: n2 })
-        assert.equal(r.ok, affordable, "seam scout affordability mismatch")
+        assert.equal(r.ok, affordable, "river scout affordability mismatch")
         checked++
         break
       }
     }
   }
-  assert.ok(checked > 0, "fuzz never reached a non-safe seam frontier")
+  assert.ok(checked > 0, "fuzz never reached a non-safe river frontier")
 })
 
 test("the discovery ratchet only ever grows across a session", () => {
@@ -1285,7 +1366,7 @@ test("the discovery ratchet only ever grows across a session", () => {
     const opts = candidates(sim)
     if (!opts.length) break
     sim.dispatch(pick(rng, opts))
-    const total = worldSig(sim.root()).reduce((s, t) => s + t.discovered.length + t.reached.length, 0)
+    const total = worldSig(sim).reduce((s, t) => s + (t.discovered?.length || 0) + (t.reached?.length || 0), 0)
     assert.ok(total >= last, "world discovery shrank")
     last = total
   }
@@ -1328,11 +1409,11 @@ test("invalid actions are rejected, not crashes", () => {
   assert.equal(sim.apply({ type: "exit", superIdx: -1 }).ok, false)
   assert.equal(sim.apply({ type: "move", target: [3, -3] }).ok, false) // undiscovered
   assert.equal(sim.apply({ type: "move", target: [20, -10] }).ok, false) // beyond the view
-  assert.equal(sim.apply({ type: "scout", target: [0, -5] }).ok, false) // seam, not adjacent
+  assert.equal(sim.apply({ type: "scout", target: [0, -5] }).ok, false) // river, not adjacent
   assert.equal(sim.apply({ type: "park", superIdx: 0 }).ok, false) // retired action
   assert.equal(sim.apply({ type: "slide", superIdx: 0 }).ok, false) // retired action
   assert.equal(sim.apply({ type: "bogus" }).ok, false)
-  assert.equal(sim.kindOf([100, 100]), null)
+  assert.equal(sim.onMap([100, 100]), false)
 })
 
 test("dispatch is refused during replay", () => {
@@ -1349,7 +1430,7 @@ test("dispatch is refused during replay", () => {
 test("classification and discovery are global — no frame, no range limit", () => {
   const sim = createSim()
   clearHome(sim, makeRng(9))
-  assert.ok(raftOut(sim), "could not raft out of home") // RULES 30/33: the seam is water, and the raft is a haul
+  assert.ok(raftOut(sim), "could not raft out of home") // RULES 30/33: the river is water, and the raft is a haul
   const nbr = Hex.neighbors(GATE_TILE).find(n => {
     const b = sim.boardHexOf(n)
     return b && (b[0] !== 0 || b[1] !== 0)
@@ -1358,11 +1439,11 @@ test("classification and discovery are global — no frame, no range limit", () 
   assert.ok(sim.dispatch({ type: "move", target: nbr }).ok)
   // from the neighbour board, home keeps its one true name — [0,0] is still
   // the home centre, and reads discovered from anywhere
-  assert.equal(sim.kindOf([0, 0]), "in")
+  assert.deepEqual(sim.boardHexOf([0, 0]), [0, 0])
   assert.ok(sim.isDiscovered([0, 0]), "home centre lost its discovery")
-  assert.ok(sim.isDiscovered(GATE_TILE), "gate seam lost its discovery")
+  assert.ok(sim.isDiscovered(GATE_TILE), "gate river lost its discovery")
   // far empty space is nothing
-  assert.equal(sim.kindOf([60, 60]), null)
+  assert.equal(sim.onMap([60, 60]), false)
   assert.equal(sim.isDiscovered([60, 60]), false)
 })
 
@@ -1370,7 +1451,7 @@ test("clearBoard reveals the whole board, leaves the gate for the walk, and repl
   const sim = createSim()
   assert.ok(sim.dispatch({ type: "clearBoard" }).ok)
   const home = sim.view().tile
-  assert.equal(home.discovered.size, BOARD_TILES)
+  assert.equal(sim.foundOn([0, 0]), BOARD_TILES)
   // REVEALING A BOARD IS NOT STANDING ON ITS DOOR (RULES 49). Day one cannot
   // even make the trip — the budget is the tiles found BEFORE today, so it is
   // one minute here; the walk, and the gate with it, belong to the next day.
@@ -1424,7 +1505,7 @@ function standAt(sim, board) {
 // …and a sim that has been taught the asked levels, standing back at home.
 function simWithSkills(min) {
   for (const c of "0123456789abcdef") {
-    const sim = createSim({ pubkey: c.repeat(64), worldKey: "abcdef01".repeat(8) })
+    const sim = createSim({ pubkey: c.repeat(64), worldKey: worldKeyFor(c.repeat(64), SEED_ANGLE) })
     sim.dispatch({ type: "clearMap" })
     sim.dispatch({ type: "move", target: [0, 0] })
     sim.dispatch({ type: "rest" })
@@ -1446,10 +1527,10 @@ function standByTeacher(sim) {
 }
 
 // a sim (whole world revealed, rested) POSITIONED on a ready `res` tile past
-// the seam — looping seeds until one offers a reachable one. { sim, tile }.
+// the river — looping seeds until one offers a reachable one. { sim, tile }.
 function gatherReadySim(res) {
   for (const c of "0123456789abcdef") {
-    const sim = createSim({ pubkey: c.repeat(64), worldKey: "abcdef01".repeat(8) })
+    const sim = createSim({ pubkey: c.repeat(64), worldKey: worldKeyFor(c.repeat(64), SEED_ANGLE) })
     sim.dispatch({ type: "clearMap" })
     sim.dispatch({ type: "move", target: [0, 0] })
     sim.dispatch({ type: "rest" })
@@ -1462,24 +1543,26 @@ function gatherReadySim(res) {
 }
 
 // POSITION the player on a ready, reachable tile yielding `res` OUT PAST THE
-// SEAM (home tiles aren't gatherable). Returns the tile — the caller
+// RIVER (home tiles aren't gatherable). Returns the tile — the caller
 // gathers. `byHome` picks the node NEAREST home (lowest reserve) instead of
 // nearest the player, so a gathering run stays close to base. Rests to
-// refill when nothing's in reach. null if it can't.
-function gatherOutside(sim, res, avoid = new Set(), byHome = false) {
+// refill when nothing's in reach. null if it can't. `span` is how far out it
+// looks — wood is rarely within a board of home.
+function gatherOutside(sim, res, avoid = new Set(), byHome = false, span = 12) {
   // RULES 30: with a river to cross, a gathering run takes more days — the raft
   // has to be fetched, and the way back is over the water
   for (let guard = 0; guard < 220; guard++) {
     const p = sim.view().player
     let best = null
-    for (let q = -12; q <= 12; q++)
-      for (let r = -12; r <= 12; r++) {
+    for (let q = -span; q <= span; q++)
+      for (let r = -span; r <= span; r++) {
         const g = [q, r]
         const k = q + "," + r
-        if (avoid.has(k) || !sim.isDiscovered(g) || !sim.canMove(g)) continue
+        if (avoid.has(k) || !sim.isDiscovered(g)) continue
         const bh = sim.boardHexOf(g)
         if (!bh || (bh[0] === 0 && bh[1] === 0)) continue // must be OUTSIDE the home board
         if (!sim.yieldsAt(g).some(y => y.res === res)) continue // a NODE of this resource (biome × node draw)
+        if (!sim.canMove(g)) continue // (priced last — it is the dear one)
         const d = byHome ? sim.returnFrom(g) : Math.abs(q - p[0]) + Math.abs(r - p[1])
         if (!best || d < best.d) best = { g, k, d }
       }
@@ -1500,7 +1583,7 @@ function gatherOutside(sim, res, avoid = new Set(), byHome = false) {
 }
 
 test("walking a tile wears it in — the step cost drops toward a floor", () => {
-  const found = gatherReadySim("plants") // lands the player ON an outside node, past the seam
+  const found = gatherReadySim("plants") // lands the player ON an outside node, past the river
   assert.ok(found, "no seed positioned the player outside")
   const { sim, tile } = found // `tile` is outside + a node → non-centre, walkable
   // a neighbour to bounce off, so we re-ENTER `tile` (each entry wears it)
@@ -1530,7 +1613,7 @@ test("walking a tile wears it in — the step cost drops toward a floor", () => 
 })
 
 test("homePathFrom matches homePath from the player's own tile", () => {
-  const found = gatherReadySim("plants") // player is outside, past the seam
+  const found = gatherReadySim("plants") // player is outside, past the river
   assert.ok(found, "no seed positioned the player outside")
   const { sim } = found
   const p = sim.view().player
@@ -1560,11 +1643,13 @@ test("every discovered tile adds a minute — the first one already pays", () =>
   assert.ok(sim.dispatch({ type: "rest" }).ok)
   assert.equal(sim.dayBudget(), SEED_MIN + ENERGY_START, "the next day opens on seed + home")
 
-  // revealing the whole world (home + 60 outside boards) caps at a full day
+  // revealing the whole world (home + 71 outside boards, twelve of them pentagons) caps at a full day
   assert.ok(sim.dispatch({ type: "clearMap" }).ok)
-  assert.equal(sim.tilesFound(), 61 * 60, "every board's tiles count now, home included")
-  assert.equal(sim.nextBudget(), WAKE_CAP, "a fully-explored world caps the budget at the waking window")
-  assert.equal(WAKE_CAP, FREE_CAP - SLEEP_MIN, "…which is the day less the sleep it owes (RULES 42)")
+  const allTiles = sim.boards().reduce((n, c) => n + sim.tilesOf(c) - 1, 0) // every board's non-centre tiles
+  assert.equal(allTiles, 60 * 60 + 12 * 50, "sixty hexagons of 60 and twelve pentagons of 50")
+  assert.equal(sim.tilesFound(), allTiles, "every board's tiles count now, home included")
+  assert.equal(sim.nextBudget(), FREE_CAP, "a fully-explored world caps the budget at the full day (RULES 52)")
+  assert.equal(WAKE_CAP, FREE_CAP - SLEEP_MIN, "…and bed is due the day less the sleep it owes")
 })
 
 // FISHING TAKES TACKLE (RULES 36). Wading into the shallows put fish within
@@ -1576,10 +1661,11 @@ test("fish need a net — standing over them is not enough", () => {
   // test, sailing until a ready fish node is beside us
   let sim = null
   for (const c of "0123456789abcdef") {
-    const s2 = createSim({ pubkey: c.repeat(64), worldKey: "abcdef01".repeat(8) })
+    const s2 = createSim({ pubkey: c.repeat(64), worldKey: worldKeyFor(c.repeat(64), SEED_ANGLE) })
     s2.dispatch({ type: "clearBoard" })
     s2.dispatch({ type: "goHome" })
     s2.dispatch({ type: "clearMap" })
+    s2.dispatch({ type: "rest" }) // a mapped world's whole day to sail it in
     if (!raftOut(s2)) continue
     let node = null
     for (let hop = 0; hop < 10 && !node; hop++) {
@@ -1616,7 +1702,7 @@ test("fish need a net — standing over them is not enough", () => {
 
 test("gather yields, starts the regrow clock, and weighs the pack down", () => {
   const found = gatherReadySim("plants")
-  assert.ok(found, "no seed offered a reachable plants tile past the seam")
+  assert.ok(found, "no seed offered a reachable plants tile past the river")
   const { sim, tile } = found
   assert.ok(sim.gatherInfo().some(y => y.res === "plants"), "plants should be on offer here")
   const costEmpty = sim.stepCostAt(tile) // an outside tile's cost rises with load
@@ -1627,6 +1713,70 @@ test("gather yields, starts the regrow clock, and weighs the pack down", () => {
   assert.ok(!sim.canAct({ type: "gather", item: "plants" }), "the tile must be regrowing now")
   const costLoaded = sim.stepCostAt(tile)
   assert.ok(costLoaded > costEmpty, "a loaded pack must slow the step")
+})
+
+// A SPOT TIRES AS YOU WORK IT (RULES 59): your gather level's worth of gathers,
+// then bare days that double, and every full day it sits back untouched undoes one.
+test("a gathered spot tires: your level's worth of gathers, then doubling bare days, healed by leaving it be", () => {
+  assert.deepEqual([1, 2, 3, 4, 5].map(n => bareDays(n, 1)), [1, 2, 4, 8, 16])
+  assert.deepEqual([1, 2, 3, 4].map(n => bareDays(n, 3)), [0, 0, 1, 2])
+  const found = gatherReadySim("plants")
+  assert.ok(found, "no seed offered a reachable plants tile past the river")
+  const { sim, tile } = found
+  const back = () => sim.yieldsAt(tile).find(y => y.res === "plants").ready
+  // nights at home: WALKED back first, so the raft comes home too and tomorrow's
+  // crossing is the same as today's
+  const sleepOn = n => {
+    if (String(sim.view().player) !== "0,0") assert.ok(sim.dispatch({ type: "move", target: [0, 0] }).ok, "couldn't walk home")
+    for (let i = 0; i < n; i++) assert.ok(sim.dispatch({ type: "goHome" }).ok)
+  }
+  // …and the harvest is left on the spot, so the pack never prices the walks up
+  const gatherThere = () => {
+    if (String(sim.view().player) !== String(tile)) assert.ok(sim.dispatch({ type: "move", target: tile }).ok, "couldn't walk back to the spot")
+    assert.ok(sim.dispatch({ type: "gather", item: "plants" }).ok, "the spot should give a gather")
+    assert.ok(sim.dispatch({ type: "drop", item: "plants" }).ok)
+  }
+  // gather 1: one gather, then bare a day — and stripped every time it's back, the wait doubles
+  assert.equal(sim.skillOf("gather"), 1)
+  gatherThere()
+  assert.ok(!back(), "bare after the first gather")
+  sleepOn(1)
+  assert.ok(back(), "back the next morning")
+  gatherThere()
+  sleepOn(1)
+  assert.ok(!back(), "the second gather leaves it bare two days")
+  sleepOn(1)
+  assert.ok(back(), "…back on the second morning")
+  gatherThere()
+  sleepOn(3)
+  assert.ok(!back(), "the third, four")
+  sleepOn(1)
+  assert.ok(back())
+  // two quiet days once it's back undo two of its three gathers, so the next one
+  // leaves it bare two days where a fourth in a row would have left it eight
+  sleepOn(2)
+  gatherThere()
+  sleepOn(1)
+  assert.ok(!back())
+  sleepOn(1)
+  assert.ok(back(), "healed: two days, not eight")
+  // gather 3: left alone until it's fresh, the spot gives three gathers straight
+  assert.ok(sim.dispatch({ type: "setSkill", skill: "gather", level: 3 }).ok)
+  sleepOn(2)
+  gatherThere()
+  assert.ok(back(), "gather 3 — two left")
+  gatherThere()
+  assert.ok(back(), "…one left")
+  gatherThere()
+  assert.ok(!back(), "…and bare after the third")
+  // the count is log-derived like everything else: the day replays to the same spot
+  const sig = stateSig(sim)
+  const log = sim.log().slice()
+  sim.beginReplay()
+  for (const a of log) assert.ok(sim.apply(a).ok)
+  sim.endReplay()
+  assert.equal(stateSig(sim), sig, "the gathering day diverged on replay")
+  assert.ok(!back(), "…and the spot is still bare")
 })
 
 test("home isn't gatherable — but nothing stops you crafting there", () => {
@@ -1651,9 +1801,14 @@ test("home isn't gatherable — but nothing stops you crafting there", () => {
     assert.match(row.why, gate, `${row.k} was blocked by something other than its own level or materials: ${row.why}`)
     assert.ok(!/figure|specialist|commission/i.test(row.why), `${row.k} still blames a missing figure: ${row.why}`)
   }
-  // …and the CRUDE tier asks nothing of your hands: every one of them is at the
-  // level everybody starts on, so only the fine tier is gated at all
-  for (const k in RECIPES) if (!k.startsWith("fine")) assert.equal(RECIPES[k].level, 1, `${k} gates the crude tier`)
+  // …and THE LEVELS CLIMB IN STEPS (RULES 60, 61): raw matter into material at
+  // 1, one material worked into a thing at 2, parts put together at 3, and the
+  // fine tier at 6 — every recipe on its rung
+  const LADDER = { 1: ["cord", "shard"], 2: ["cutter", "piercer", "crusher", "rope", "basket", "net"], 3: ["axe", "snare", "spear", "hammer"] }
+  for (const [lvl, ks] of Object.entries(LADDER)) for (const k of ks) assert.equal(RECIPES[k].level, +lvl, `${k} sits on the wrong rung`)
+  const fine = Object.keys(RECIPES).filter(k => k.startsWith("fine"))
+  for (const k of fine) assert.equal(RECIPES[k].level, 6, `${k} is the fine tier`)
+  assert.equal(Object.keys(RECIPES).length, Object.values(LADDER).flat().length + fine.length, "every recipe has its rung")
   assert.equal(sim.preserve(), 1, "no basket yet, no preservation")
 })
 
@@ -1662,7 +1817,7 @@ test("home isn't gatherable — but nothing stops you crafting there", () => {
 // you begin — levels are climbed, not handed out.
 test("every skill starts at exactly 1, however rich the key", () => {
   for (const c of "0123456789abcdef") {
-    const sim = createSim({ pubkey: c.repeat(64), worldKey: "abcdef01".repeat(8) })
+    const sim = createSim({ pubkey: c.repeat(64), worldKey: worldKeyFor(c.repeat(64), SEED_ANGLE) })
     const nature = sim.playerStats()
     for (const s of STAT_NAMES) assert.equal(sim.skillOf(s), 1, `${s} started at ${sim.skillOf(s)} on key ${c} (nature ${nature[s]})`)
   }
@@ -1679,11 +1834,14 @@ test("every skill starts at exactly 1, however rich the key", () => {
 // wherever you happen to be — and there is no reason that can't be your own
 // fire at home, which is the case this pins.
 test("you weave the basket yourself, at home, with nobody's help", () => {
-  const need = RECIPES.basket.needs.plants
+  // PLANTS → CORD → BASKET (RULES 55): cord is the first thing you ever make,
+  // and the basket is woven out of it, so the forage is priced through the cord
+  const cords = RECIPES.basket.needs.cord
+  const need = cords * RECIPES.cord.needs.plants
   let sim = null
   for (const c of "0123456789abcdef") {
-    const s2 = createSim({ pubkey: c.repeat(64), worldKey: "abcdef01".repeat(8) })
-    if (s2.skillOf("craft") < RECIPES.basket.level) continue // this key can't weave yet
+    const s2 = createSim({ pubkey: c.repeat(64), worldKey: worldKeyFor(c.repeat(64), SEED_ANGLE) })
+    s2.dispatch({ type: "setSkill", skill: "craft", level: RECIPES.basket.level }) // the basket is craft 2; everyone starts at 1
     s2.dispatch({ type: "clearMap" })
     s2.dispatch({ type: "move", target: [0, 0] })
     s2.dispatch({ type: "rest" })
@@ -1702,6 +1860,7 @@ test("you weave the basket yourself, at home, with nobody's help", () => {
     break
   }
   assert.ok(sim, `no seed gathered ${need} plants and got them home`)
+  for (let i = 0; i < cords; i++) assert.ok(sim.dispatch({ type: "craft", recipe: "cord" }).ok, "the plants would not twist into cord")
 
   const p = sim.view().player
   assert.equal(sim.landAt(p), null, "home tiles aren't land — and it must not matter")
@@ -1712,10 +1871,10 @@ test("you weave the basket yourself, at home, with nobody's help", () => {
 
   const before = sim.skillProgress("craft")
   const cap = sim.carryCap()
-  assert.ok(sim.canAct({ type: "craft", recipe: "basket" }), "the plants are here and so are your hands")
+  assert.ok(sim.canAct({ type: "craft", recipe: "basket" }), "the cord is here and so are your hands")
   assert.ok(sim.dispatch({ type: "craft", recipe: "basket" }).ok)
   assert.equal(sim.inventory().basket, 1, "the basket should be on your back")
-  assert.equal(sim.inventory().plants, undefined, "…and the plants spent")
+  assert.equal(sim.inventory().cord, undefined, "…and the cord spent")
   assert.ok(sim.carryCap() > cap, "a basket carries more")
   assert.ok(sim.preserve() > 1, "…and keeps food fresher")
   // MAKING TRAINS THE MAKER — the shape moved, which the old NPC service never did
@@ -1734,6 +1893,109 @@ test("you weave the basket yourself, at home, with nobody's help", () => {
   assert.equal(stateSig(sim), sig, "the crafting day diverged on replay")
 })
 
+// MATERIALS ARE WORKED BEFORE THEY ARE USED (RULES 56, 60, 61). A rock is a
+// lump: broken, it is three shards; a shard knapped is a HEAD — the cutter (an
+// edge), the piercer (a point), the crusher (a blunt face) — and a head on a
+// branch with a cord is a tool: the cutter an axe, the piercer a spear, the
+// crusher a hammer. The snare is a branch and a cord. The wall's kit has the
+// rock, the branches and the cord, so the whole chain runs on the doorstep —
+// with the wall's own pile as the workbench (a craft takes from the ground
+// first, RULES 64, and puts down what the back can't hold, RULES 66).
+test("a rock breaks into shards, a shard knaps into a head, and a head on a branch is a tool", () => {
+  const sim = createSim({ pubkey: "3".repeat(64), worldKey: "abcdef01".repeat(8) })
+  assert.ok(sim.dispatch({ type: "clearBoard" }).ok)
+  sim.dispatch({ type: "goHome" }) // a fresh day, so the walk to the door is affordable
+  const doorstep = Hex.fromKey(GATE_EDGE.k)
+  assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok, "cannot reach the doorstep")
+  assert.ok(sim.dispatch({ type: "setSkill", skill: "craft", level: 3 }).ok) // the heads are craft 2, the tools 3
+  const row = k => sim.craftList().find(r => r.k === k)
+  const pile = k => (sim.stashHere() || []).find(p => p.item === k)?.n || 0
+  const have = k => (sim.inventory()[k] || 0) + pile(k) // on your back or at your feet
+  // the rock, broken off the pile itself
+  assert.equal(row("shard").makes, 3, "the bill should say what a rock breaks into")
+  const rocks = pile("rock")
+  assert.ok(sim.dispatch({ type: "craft", recipe: "shard" }).ok, "the rock would not break")
+  assert.equal(pile("rock"), rocks - 1, "the rock should come off the ground first")
+  assert.equal(have("shard"), 3, "a rock is three shards")
+  // …and each shard knapped into a head
+  assert.ok(sim.dispatch({ type: "craft", recipe: "cutter" }).ok, "the shard would not knap to an edge")
+  assert.equal(have("cutter"), 1)
+  assert.equal(sim.canAct({ type: "craft", recipe: "cutter" }), false, "a second cutter while holding one (RULES 44)")
+  assert.equal(row("cutter").why, "you already carry a cutter")
+  assert.ok(sim.dispatch({ type: "craft", recipe: "piercer" }).ok, "the shard would not knap to a point")
+  assert.ok(sim.dispatch({ type: "craft", recipe: "crusher" }).ok, "the shard would not knap to a blunt face")
+  assert.equal(have("shard"), 0, "three shards, three heads")
+  // the axe is the cutter hafted on a branch with a cord: it takes all three
+  const branches = have("branches")
+  assert.ok(sim.dispatch({ type: "craft", recipe: "axe" }).ok, "the axe would not haft")
+  assert.equal(have("axe"), 1)
+  assert.equal(have("cutter"), 0, "the cutter should be in the axe")
+  assert.equal(have("branches"), branches - 1, "…and a branch its haft")
+  // a day of making runs the first budget down — sleep on it and walk back out
+  assert.ok(sim.dispatch({ type: "goHome" }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: doorstep }).ok, "cannot walk back to the door")
+  assert.ok(sim.dispatch({ type: "craft", recipe: "spear" }).ok, "the spear would not lash")
+  assert.equal(have("spear"), 1)
+  assert.equal(have("piercer"), 0, "the piercer should be the spear's head")
+  assert.ok(sim.dispatch({ type: "craft", recipe: "hammer" }).ok, "the hammer would not lash")
+  assert.equal(have("hammer"), 1)
+  assert.equal(have("crusher"), 0, "the crusher should be the hammer's head")
+  assert.ok(sim.dispatch({ type: "craft", recipe: "snare" }).ok, "the snare would not lash")
+  assert.equal(have("snare"), 1)
+  assert.equal(have("branches"), branches - 4, "every tool took one branch")
+  // the whole chain replays to the same pack and pile
+  const sig = stateSig(sim)
+  const pack = JSON.stringify(sim.inventory())
+  const log = sim.log().slice()
+  sim.beginReplay()
+  for (const a of log) assert.ok(sim.apply(a).ok)
+  sim.endReplay()
+  assert.equal(stateSig(sim), sig, "the stone day diverged on replay")
+  assert.equal(JSON.stringify(sim.inventory()), pack, "the pack diverged on replay")
+})
+
+// …and a forage can want a tool of its own without becoming a hunt: roots are
+// dug with the cutter (oysters prised with it), refused bare-handed, and still a
+// gather — by hand, training gather.
+test("roots wait for the cutter — dug, not picked, and still a gather", () => {
+  // knap the cutter FIRST, off a rock in the wall's kit — gatherOutside only
+  // stands where the take is legal, and without the cutter no roots tile is
+  let sim = null
+  for (const c of "0123456789abcdef") {
+    const s2 = createSim({ pubkey: c.repeat(64), worldKey: worldKeyFor(c.repeat(64), SEED_ANGLE) })
+    s2.dispatch({ type: "clearMap" })
+    s2.dispatch({ type: "move", target: [0, 0] })
+    s2.dispatch({ type: "rest" })
+    if (!openWorld(s2)) continue // the raft found nowhere to land on this world
+    if (!s2.dispatch({ type: "move", target: Hex.fromKey(GATE_EDGE.k) }).ok) continue
+    s2.dispatch({ type: "setSkill", skill: "craft", level: RECIPES.cutter.level }) // the cutter is craft 2; everyone starts at 1
+    // the rock is broken where it lies — a craft takes from the ground first (RULES 64)
+    if (!s2.dispatch({ type: "craft", recipe: "shard" }).ok || !s2.dispatch({ type: "craft", recipe: "cutter" }).ok) continue
+    while (s2.dispatch({ type: "drop", item: "shard" }).ok); // travel light
+    s2.dispatch({ type: "goHome" })
+    if (!gatherOutside(s2, "roots", new Set())) continue
+    sim = s2
+    break
+  }
+  assert.ok(sim, "no seed put a roots tile within a cutter's reach")
+  const gi = () => sim.gatherInfo().find(y => y.res === "roots")
+  assert.equal(gi().verb, "gather", "a tool of its own does not make roots a hunt")
+  assert.equal(gi().lacks, null, "the cutter is on your back")
+  // put the cutter down: the dig is refused, and says what it wants
+  assert.ok(sim.dispatch({ type: "drop", item: "cutter" }).ok)
+  assert.ok(gi().ready && !gi().full, "nothing but the tool should stand in the way")
+  assert.equal(gi().lacks, "cutter", "the missing thing should be named")
+  assert.equal(sim.canAct({ type: "gather", item: "roots" }), false, "dug bare-handed")
+  assert.equal(sim.dispatch({ type: "gather", item: "roots" }).ok, false, "a cutterless dig was allowed through")
+  assert.equal(sim.dispatch({ type: "hunt", item: "roots" }).ok, false, "…and roots are never hunted")
+  assert.deepEqual(RESOURCES.oysters.with, ["cutter"], "oysters ask for the cutter the same way")
+  // pick it back up, and the roots come out
+  assert.ok(sim.dispatch({ type: "take", item: "cutter" }).ok)
+  assert.equal(gi().lacks, null)
+  assert.ok(sim.dispatch({ type: "gather", item: "roots" }).ok, "the cutter would not dig")
+  assert.equal(sim.inventory().roots, 1)
+})
+
 test("a tile holds what you drop on it and gives it back; the weight lifts", () => {
   const found = gatherReadySim("plants")
   assert.ok(found, "no seed offered a reachable plants tile")
@@ -1748,21 +2010,21 @@ test("a tile holds what you drop on it and gives it back; the weight lifts", () 
   // stash it: leaves the pack, sits in the cell, weight lifts
   assert.ok(sim.dispatch({ type: "drop", item: "plants" }).ok)
   assert.equal(sim.inventory().plants, undefined, "it left the pack")
-  assert.deepEqual(sim.stashHere(), { item: "plants", n: 1 }, "…and sits in the cell")
+  assert.deepEqual(sim.stashHere(), [{ item: "plants", n: 1 }], "…and sits in the cell")
   assert.equal(sim.loadOf(), 0, "stashing offloads the weight")
   // take it back
-  assert.ok(sim.canAct({ type: "take" }))
-  assert.ok(sim.dispatch({ type: "take" }).ok)
+  assert.ok(sim.canAct({ type: "take", item: "plants" }))
+  assert.ok(sim.dispatch({ type: "take", item: "plants" }).ok)
   assert.equal(sim.inventory().plants, 1, "back on your back")
   assert.equal(sim.stashHere(), null, "the cell is empty again")
   // the whole thing replays byte-for-byte
   const before = stateSig(sim)
-  const sim2 = createSim({ pubkey: sim.pubkey(), worldKey: "abcdef01".repeat(8) })
+  const sim2 = createSim({ pubkey: sim.pubkey(), worldKey: sim.worldKey() })
   assert.ok(
     sim2.hydrate({
       app: "anon&mato",
       schema: 3,
-      world: { angle: sim2.angle(), pubkey: sim.pubkey(), worldKey: "abcdef01".repeat(8), rings: RINGS, rules: RULES },
+      world: { angle: sim2.angle(), pubkey: sim.pubkey(), worldKey: sim.worldKey(), rings: RINGS, rules: RULES },
       days: sim.history().map(h => ({ day: h.day, actions: h.actions })),
       today: { day: sim.day(), actions: sim.log().slice() }
     }).ok
@@ -1779,10 +2041,10 @@ test("dropping out in the world leaves it on that tile, and it waits there", () 
   const where = sim.view().player.slice() // out in the world, nowhere special
   assert.ok(sim.dispatch({ type: "drop", item: "plants" }).ok)
   assert.equal(sim.inventory().plants, undefined, "off your back")
-  assert.deepEqual(sim.stashHere(), { item: "plants", n: 1 }, "…and lying at your feet")
-  // the world already holds the wall's leftover debris (RULES 33) — what matters
+  assert.deepEqual(sim.stashHere(), [{ item: "plants", n: 1 }], "…and lying at your feet")
+  // the world already holds the wall's leftover kit (RULES 55) — what matters
   // is that THIS drop made its own pile, on the tile it was dropped on
-  const piles = sim.stashes().filter(p => p.item === "plants")
+  const piles = sim.stashes().filter(p => p.kinds.some(e => e.item === "plants"))
   assert.equal(piles.length, 1, "one pile of plants in the world")
   assert.deepEqual(piles[0].at, where, "on the very tile it was dropped on")
   // walk off and come back: it's still there, and it comes back up
@@ -1792,11 +2054,11 @@ test("dropping out in the world leaves it on that tile, and it waits there", () 
     assert.equal(sim.stashHere(), null, "nothing underfoot over there")
     assert.ok(sim.dispatch({ type: "move", target: where }).ok)
   }
-  assert.deepEqual(sim.stashHere(), { item: "plants", n: 1 }, "still waiting where you left it")
-  assert.ok(sim.dispatch({ type: "take" }).ok)
+  assert.deepEqual(sim.stashHere(), [{ item: "plants", n: 1 }], "still waiting where you left it")
+  assert.ok(sim.dispatch({ type: "take", item: "plants" }).ok)
   assert.equal(sim.inventory().plants, 1, "picked back up")
   assert.deepEqual(
-    sim.stashes().filter(p => p.item === "plants"),
+    sim.stashes().filter(p => p.kinds.some(e => e.item === "plants")),
     [],
     "and the pile is gone"
   )
@@ -1812,24 +2074,22 @@ test("a drop that can't land is refused — nothing ever vanishes off your back"
   assert.ok(sim.dispatch({ type: "move", target: [0, 0] }).ok)
   assert.deepEqual(sim.view().player, [0, 0], "standing on the home centre")
   assert.ok(sim.dispatch({ type: "drop", item: "plants" }).ok)
-  assert.deepEqual(sim.stashHere(), { item: "plants", n: 1 }, "the centre keeps it like any tile")
-  // …and a tile already holding one type REFUSES another, rather than eating it
+  assert.deepEqual(sim.stashHere(), [{ item: "plants", n: 1 }], "the centre keeps it like any tile")
+  // …and a tile already holding one kind takes another beside it (RULES 55)
   const second = gatherOutside(sim, "wood")
   if (second) {
     assert.ok(sim.dispatch({ type: "gather", item: "wood" }).ok)
     assert.equal(sim.inventory().wood, 1)
     assert.ok(sim.dispatch({ type: "move", target: [0, 0] }).ok)
-    const before = JSON.stringify(sim.inventory())
-    const r = sim.dispatch({ type: "drop", item: "wood" })
-    assert.equal(r.ok, false, "one item type per tile — the drop is refused")
-    assert.equal(JSON.stringify(sim.inventory()), before, "and the wood is still on your back")
-    assert.deepEqual(sim.stashHere(), { item: "plants", n: 1 }, "the pile is untouched")
+    assert.ok(sim.dispatch({ type: "drop", item: "wood" }).ok, "a second kind lands beside the first")
+    assert.equal(sim.inventory().wood ?? 0, 0, "and leaves your back")
+    assert.deepEqual(sim.stashHere(), [{ item: "plants", n: 1 }, { item: "wood", n: 1 }], "the pile holds both")
   }
 })
 
 test("a harvest spoils after its shelf life and can't be hoarded", () => {
   const found = gatherReadySim("plants")
-  assert.ok(found, "no seed offered a reachable plants tile past the seam")
+  assert.ok(found, "no seed offered a reachable plants tile past the river")
   const { sim } = found
   assert.ok(sim.dispatch({ type: "gather", item: "plants" }).ok)
   // a raw plant keeps 3 days (4320 world-min)
@@ -1845,12 +2105,12 @@ test("a harvest spoils after its shelf life and can't be hoarded", () => {
   // and it replays to the same (empty) pack
   const before = stateSig(sim)
   const days = sim.history().map(h => ({ day: h.day, actions: h.actions }))
-  const sim2 = createSim({ pubkey: sim.pubkey(), worldKey: "abcdef01".repeat(8) })
+  const sim2 = createSim({ pubkey: sim.pubkey(), worldKey: sim.worldKey() })
   assert.ok(
     sim2.hydrate({
       app: "anon&mato",
       schema: 3,
-      world: { angle: sim2.angle(), pubkey: sim.pubkey(), worldKey: "abcdef01".repeat(8), rings: RINGS, rules: RULES },
+      world: { angle: sim2.angle(), pubkey: sim.pubkey(), worldKey: sim.worldKey(), rings: RINGS, rules: RULES },
       days,
       today: { day: sim.day(), actions: sim.log().slice() }
     }).ok
@@ -1895,7 +2155,7 @@ function tryBuildCamp(sim) {
   for (let q = -12; q <= 12; q++)
     for (let r = -12; r <= 12; r++) {
       const g = [q, r]
-      if (!sim.isDiscovered(g) || sim.kindOf(g) !== "in") continue
+      if (!sim.isDiscovered(g) || !sim.boardHexOf(g)) continue
       const bh = sim.boardHexOf(g)
       if (!bh || (bh[0] === 0 && bh[1] === 0)) continue
       if (sim.typeNameAt(g) === "water" || !sim.canMove(g)) continue
@@ -1910,17 +2170,17 @@ function tryBuildCamp(sim) {
   return { ok: false, reason: `unaffordable (e ${sim.energy().toFixed(0)}, pack ${JSON.stringify(sim.inventory())})` }
 }
 
-// PARKED 2026-08-03 (RULES 30). Not a sim defect — an economy one: with every
-// seam a river, sourcing a camp's materials past the water means fetching the
+// PARKED 2026-08-03 (RULES 30). Not a sim defect — an economy one: with a river
+// round every board, sourcing a camp's materials past the water means fetching the
 // raft, crossing, gathering under a rising load, and crossing back, and no
 // world in a 80-key search affords all five nodes in one reserve. The fixture
 // hauls everything on its back in one go; what the game now wants is FERRYING
 // — gather, drop on the bank (drops persist since RULES 29), come back for the
-// rest. Rewrite this on top of the debris-haul flow when that lands; the camp
+// rest. Rewrite this on top of the ferry flow when that lands; the camp
 // mechanic itself is untouched and still covered by canAct/build unit paths.
 test.skip("a built camp is a real resting place and eases the reserve", () => {
   // a forest-rich world with buildable land close to home, so a first camp
-  // is affordable to raise (wood + plant nodes near the seam)
+  // is affordable to raise (wood + plant nodes near the river)
   const WK = "8ff5e739".repeat(8)
   let sim = null
   let reason = "no qualifying seed"
@@ -1941,7 +2201,7 @@ test.skip("a built camp is a real resting place and eases the reserve", () => {
     for (let q = -11; q <= 11; q++)
       for (let r = -11; r <= 11; r++) {
         const L = Math.max(Math.abs(q), Math.abs(r), Math.abs(-q - r))
-        if (L < 6 || L > 11) continue // just past the seam, near home
+        if (L < 6 || L > 11) continue // just past the river, near home
         const gs = s.gatherStateAt([q, r])
         if (!gs) continue
         if (gs.res === "wood") wood++
@@ -1959,14 +2219,14 @@ test.skip("a built camp is a real resting place and eases the reserve", () => {
     if (process.env.CAMP_DEBUG) console.log("  key", pk.slice(0, 2), "→", r.reason)
     reason = r.reason
   }
-  assert.ok(sim, "no seed let a camp be built past the seam: " + reason)
+  assert.ok(sim, "no seed let a camp be built past the river: " + reason)
 
   assert.equal(sim.camps().length, 1)
   assert.ok(sim.atRestSpot(), "the camp counts as a resting place")
   const day0 = sim.day()
   assert.ok(sim.dispatch({ type: "rest" }).ok, "the day can end at the camp")
   assert.equal(sim.day(), day0 + 1)
-  assert.ok(sim.dayBudget() > ENERGY_START, "reaching past the seam grew the budget")
+  assert.ok(sim.dayBudget() > ENERGY_START, "reaching past the river grew the budget")
   assert.equal(sim.energy(), sim.dayBudget(), "rested to the full (grown) tank")
   // the whole thing replays to the same world, camp and all
   const before = stateSig(sim)
@@ -1983,32 +2243,29 @@ test.skip("a built camp is a real resting place and eases the reserve", () => {
   assert.equal(sim2.camps().length, 1, "the camp must survive the rebuild")
 })
 
-test("clearMap reveals every board and seam, and replays cleanly", () => {
+test("clearMap reveals every board and river, and replays cleanly", () => {
   const sim = createSim()
   assert.ok(sim.dispatch({ type: "clearMap" }).ok)
-  const parent = sim.parentOf().tile
+  const parent = sim.ground(sim.depth() - 1)
   // every board of the parent field: fully discovered, known at parent scale
   const len = ([q, r]) => Math.max(Math.abs(q), Math.abs(r), Math.abs(-q - r))
   let boards = 0
-  for (let q = -RINGS; q <= RINGS; q++)
-    for (let r = -RINGS; r <= RINGS; r++) {
-      if (len([q, r]) > RINGS) continue
-      boards++
-      assert.ok(parent.discovered.has(q + "," + r), `board ${q},${r} unknown at parent scale`)
-      const node = parent.children[q + "," + r]
-      assert.equal(node?.discovered.size, BOARD_TILES, `board ${q},${r} not fully discovered`)
-    }
-  assert.equal(boards, BOARD_TILES)
+  for (const [q, r] of sim.boards()) {
+    boards++
+    assert.ok(parent.discovered.has(q + "," + r), `board ${q},${r} unknown at parent scale`)
+    assert.equal(sim.foundOn([q, r]), sim.tilesOf([q, r]), `board ${q},${r} not fully discovered`)
+  }
+  assert.equal(boards, 72, "seventy-two boards: sixty hexagons and twelve pentagons")
   // …and revealing them all still leaves every gate shut: a gate opens under
   // your FEET, on the door's own tile, and we have not walked anywhere (RULES 49)
   assert.equal(sim.view().tile.gateOpen, false)
-  // the seams between the boards are known too — check one for certain
-  let seam = null
-  for (let q = -SEAM_RING; q <= SEAM_RING && !seam; q++)
-    for (let r = -SEAM_RING; r <= SEAM_RING && !seam; r++)
-      if (len([q, r]) === SEAM_RING && isSeamHex([q, r])) seam = [q, r]
-  assert.ok(seam, "no seam hex found to probe")
-  assert.ok(parent.seamDiscovered.has(seam[0] + "," + seam[1]), "seam not discovered")
+  // the rivers between the boards are known too — check one for certain
+  let river = null
+  for (let q = -RIVER_RING; q <= RIVER_RING && !river; q++)
+    for (let r = -RIVER_RING; r <= RIVER_RING && !river; r++)
+      if (len([q, r]) === RIVER_RING && isRiverHex([q, r])) river = [q, r]
+  assert.ok(river, "no river hex found to probe")
+  assert.ok(sim.isDiscovered(river), "river not discovered")
   const before = stateSig(sim)
   const log = sim.log().slice()
   sim.beginReplay()
@@ -2034,12 +2291,13 @@ test("the sim runs with no DOM (this whole file is the proof)", () => {
 // and this replays the actual save through the LIVE dispatch (can() enforced)
 // to hold the line: no accepted action may ever leave energy below the way
 // back.
-// THE LOG IS A RULES-37 LIFE: its raft went up instantly, and RULES 38 charges
-// the build 30 minutes — so from its raft day on this world-line prices itself
-// out and the replay diverges, which is exactly what the RULES gate refuses in
-// game (this test bypasses the gate on purpose). What must still hold: the
-// pre-raft days replay EXACTLY (the leap's return must not touch a
-// via-carrying log), the raft build itself still fits its day, the divergence
+// THE LOG IS A RULES-37 LIFE: its raft went up instantly out of a load of
+// debris, and neither is true any more — RULES 38 charges the build 30 minutes
+// and RULES 55 charges it timber and cord, a bill this log never gathered. So
+// from its raft day on, this world-line prices itself out and the replay
+// diverges, which is exactly what the RULES gate refuses in game (this test
+// bypasses the gate on purpose). What must still hold: the pre-raft days replay
+// EXACTLY (the leap's return must not touch a via-carrying log), the divergence
 // starts at the raft day and nowhere earlier, and no accepted action ever
 // breaks energy ≥ reserve. (The day-24 raftless wade-in the save recorded —
 // the one move that had to be refused — is out of reach in the diverged tail;
@@ -2062,15 +2320,14 @@ test("a lived save replays without ever breaking energy ≥ reserve (stranding r
       const ret = sim.returnCost()
       assert.ok(e + 1e-9 >= ret, `day ${d.day}: after ${a.type}, energy ${e} < reserve ${ret}`)
     }
-  assert.ok(!rejected.some(x => x.type === "raft"), "the raft build must still fit its day at 30m")
-  assert.ok(rejected.length > 0, "a RULES-37 log must not replay whole under RULES 38 — its raft day got 30m shorter")
+  assert.ok(rejected.length > 0, "a RULES-37 log must not replay whole — its raft costs minutes and materials it never had")
   const early = rejected.find(x => x.day < RAFT_DAY)
   assert.equal(early, undefined, `pre-raft days must replay exactly, but day ${early?.day} refused a ${early?.type}`)
 })
 
 // ── PLAYER ENERGY (RULES 42): sleep and hunger, on top of the budget ────
-// The body has two base needs. SLEEP: at least SLEEP_MIN a day, so the waking
-// window caps at WAKE_CAP (pinned in the budget test above). HUNGER: no more
+// The body has two base needs. SLEEP: at least SLEEP_MIN a day — bed is due
+// WAKE_CAP after waking, a pin like the meal's (RULES 52). HUNGER: no more
 // than HUNGER_MAX between meals — every affordability check prices against the
 // lesser of the budget and the minutes until the next meal is due, so the
 // reserve lands you at a resting place before you'd go hungry, exactly as it
@@ -2081,7 +2338,7 @@ test("without food a day ends at the meal deadline, however long the budget", ()
   assert.ok(sim.dispatch({ type: "clearMap" }).ok) // a mapped world: the full waking window from tomorrow
   assert.ok(sim.dispatch({ type: "move", target: [0, 0] }).ok)
   assert.ok(sim.dispatch({ type: "rest" }).ok)
-  assert.equal(sim.energy(), WAKE_CAP, "a mapped world wakes on the whole waking window")
+  assert.equal(sim.energy(), FREE_CAP, "a mapped world wakes on the whole day (RULES 52)")
   assert.equal(sim.hungerLeft(), HUNGER_MAX, "…with the meal clock fresh")
   assert.equal(sim.timeLeft(), HUNGER_MAX, "so the meal clock, not the budget, is what there is to spend")
   // pace the home board — a minute a step — until nothing more fits
@@ -2114,10 +2371,10 @@ test("without food a day ends at the meal deadline, however long the budget", ()
 })
 
 test("a meal pushes the clock on by its own worth, and the reserve prices against it before the budget", () => {
-  const found = gatherReadySim("plants") // a mapped world (WAKE_CAP days), standing on a plants node outside
+  const found = gatherReadySim("plants") // a mapped world (FREE_CAP days), standing on a plants node outside
   assert.ok(found, "no seed positioned the player on a plants node")
   const { sim, tile } = found
-  assert.equal(sim.dayBudget(), WAKE_CAP, "a mapped world's day is the whole waking window")
+  assert.equal(sim.dayBudget(), FREE_CAP, "a mapped world's day is the whole day")
   assert.ok(sim.energy() > HUNGER_MAX, "…so hunger, not the budget, bounds the outing")
   // something to eat later — gathered now, while the clock is fresh
   assert.ok(sim.dispatch({ type: "gather", item: "plants" }).ok)
@@ -2137,6 +2394,7 @@ test("a meal pushes the clock on by its own worth, and the reserve prices agains
     for (let q = -39; q <= 39; q += 3)
       for (let r = -39; r <= 39; r += 3) {
         const g = [q, r]
+        if (Hex.length(g) > 8) continue // the near world: home and the first shore — high ground further out runs past one meal's round trip
         if (!sim.isDiscovered(g) || Hex.equals(g, p) || sim.navWater(g)) continue
         const route = sim.routeTo(g)
         if (!route) continue
@@ -2156,12 +2414,13 @@ test("a meal pushes the clock on by its own worth, and the reserve prices agains
     assert.ok(n > 0, "found nothing to price")
     return { bound, legal, farthest, far }
   }
-  // ROUTES ARE SHORT IN MINUTES: a mapped world is all within a fresh clock's
-  // reach (every round trip here is well under HUNGER_MAX), so three hours
-  // never limit travel by themselves — they limit the WORK that runs the clock
-  // down. Fresh, nothing is hunger-bound; pace the clock away, and look again.
+  // NEAR ROUTES ARE SHORT IN MINUTES: the mapped near world is all within a
+  // fresh clock's reach (every round trip here is well under HUNGER_MAX), so
+  // there three hours never limit travel by themselves — they limit the WORK
+  // that runs the clock down. Fresh, nothing near is hunger-bound; pace the
+  // clock away, and look again.
   const fresh = survey()
-  assert.ok(fresh.farthest < HUNGER_MAX, `the whole map is inside one meal (farthest round trip ${fresh.farthest})`)
+  assert.ok(fresh.farthest < HUNGER_MAX, `the near world is inside one meal (farthest round trip ${fresh.farthest})`)
   assert.equal(fresh.bound, 0, "with a fresh clock nothing is refused on hunger")
   // run the clock down the honest way — the longest round trip on the map, as
   // often as it still fits (each trip costs about the farthest need)
@@ -2192,7 +2451,7 @@ test("a meal pushes the clock on by its own worth, and the reserve prices agains
     assert.ok(sim.dispatch({ type: "eat", item: "plants" }).ok)
     assert.ok(sim.hungerLeft() > was, `a bite lost time (${was} → ${sim.hungerLeft()})`)
   }
-  // at the waking cap a bite can add no minutes (the window can't outgrow the
+  // at the day's cap a bite can add no minutes (the window can't outgrow the
   // day) — and the ration never governs the body's clock, only the day's window:
   // the push above landed while fed stayed pinned at nothing
   assert.equal(sim.fed(), 0, "nothing to add at the cap")
@@ -2214,11 +2473,12 @@ test("a meal pushes the clock on by its own worth, and the reserve prices agains
 // out of the water, the take trains HUNT (not gather), and the pack chip and
 // the ground row have a face for every one of the new things.
 test("with a net, fish are hunted — and the hunt trains hunt, not gather", () => {
-  const need = RECIPES.net.needs.plants
+  const cords = RECIPES.net.needs.cord
+  const need = cords * RECIPES.cord.needs.plants // plants → cord → net (RULES 55)
   let sim = null
   for (const c of "0123456789abcdef") {
-    const s2 = createSim({ pubkey: c.repeat(64), worldKey: "abcdef01".repeat(8) })
-    if (s2.skillOf("craft") < RECIPES.net.level) continue // this key can't weave yet
+    const s2 = createSim({ pubkey: c.repeat(64), worldKey: worldKeyFor(c.repeat(64), SEED_ANGLE) })
+    s2.dispatch({ type: "setSkill", skill: "craft", level: RECIPES.net.level }) // the net is craft 2; everyone starts at 1
     s2.dispatch({ type: "clearMap" })
     s2.dispatch({ type: "move", target: [0, 0] })
     s2.dispatch({ type: "rest" })
@@ -2232,6 +2492,9 @@ test("with a net, fish are hunted — and the hunt trains hunt, not gather", () 
     }
     if ((s2.inventory().plants || 0) < need) continue
     if (!s2.dispatch({ type: "goHome" }).ok) continue
+    let twisted = true
+    for (let i = 0; i < cords; i++) if (!s2.dispatch({ type: "craft", recipe: "cord" }).ok) twisted = false
+    if (!twisted) continue
     if (!s2.dispatch({ type: "craft", recipe: "net" }).ok) continue
     // ONE OF A KIND (RULES 44): a second net is refused, and says so; the
     // upgrade is held up only by what it still needs (the net itself is here)
@@ -2297,7 +2560,10 @@ test("every yield has a face of its own, and every biome offers a set", () => {
     for (const r of list) {
       assert.ok(RESOURCES[r], `${b} offers ${r}, which isn't a resource`)
       assert.ok(NODE_DENSITY[r] > 0, `${r} has no node rarity`)
-      assert.ok(RESOURCES[r].min > 0 && RESOURCES[r].regrow > 0, `${r} has no take or no regrow`)
+      assert.ok(RESOURCES[r].min > 0, `${r} has no take`)
+      // a hunt comes back on its own clock; what you gather has none — it tires (RULES 59)
+      if (RESOURCES[r].hunt) assert.ok(RESOURCES[r].regrow > 0, `${r} is hunted and has no regrow clock`)
+      else assert.equal(RESOURCES[r].regrow, undefined, `${r} is gathered — it tires, it keeps no clock`)
       // a hunted thing names a tool KIND some recipe makes
       const kind = RESOURCES[r].hunt
       if (kind) assert.ok(Object.values(RECIPES).some(rc => rc.tool === kind), `${r} wants a ${kind} nobody can make`)
@@ -2314,3 +2580,288 @@ test("every yield has a face of its own, and every biome offers a set", () => {
     assert.equal(r.needs[k.slice(5)], 1, `${k} doesn't replace its crude kin (RULES 44)`)
   }
 })
+
+// ── THE POT (RULES 54) ──────────────────────────────────────────────
+// A dish is a kind named by its own recipe, so everything about it can be read
+// without a sim: the worth, the keeping, the face, and the combo it lands on.
+test("a dish is its recipe: worth, keeping and combo are read off the name alone", () => {
+  assert.equal(dishOf(["fish"]), "cooked fish", "one kind is the kind's own cooked food")
+  assert.equal(dishOf(["herbs", "fish"]), "cooked fish + herbs", "a dish names its raws in order")
+  assert.equal(dishDef("cooked herbs + fish"), null, "…and answers to no other spelling")
+  assert.equal(dishDef("cooked fish"), null, "a single cooked kind lives in the table, not here")
+  assert.equal(dishDef("cooked fish + cooked herbs"), null, "the fire takes raw matter only")
+  assert.equal(dishDef("cooked fish + fish"), null, "a meal takes one of each")
+  // a plain dish: the sum ×COOK_MULT, the shortest-lived ingredient governs, the richest leads the face
+  const plain = dishDef("cooked fruit + plants")
+  assert.equal(plain.food, Math.round((RESOURCES.fruit.food + RESOURCES.plants.food) * COOK_MULT))
+  assert.equal(plain.shelf, Math.max(MEAL_SHELF_MIN, Math.min(RESOURCES.fruit.shelf, RESOURCES.plants.shelf) * 2))
+  assert.equal(plain.kcal, RESOURCES.fruit.kcal + RESOURCES.plants.kcal)
+  assert.equal(plain.protein, RESOURCES.fruit.protein + RESOURCES.plants.protein)
+  assert.equal(plain.weight, 1)
+  assert.equal(plain.combo, null)
+  assert.equal(tagOf("cooked fruit + plants"), "FR2", "fruit leads, two kinds went in")
+  // a combo pays in minutes and in keeping, and wears its own face
+  const herbed = dishDef("cooked fish + herbs")
+  const hf = comboOf(["fish", "herbs"])
+  assert.equal(herbed.combo, "herbed fish")
+  assert.equal(herbed.food, Math.round((RESOURCES.fish.food + RESOURCES.herbs.food) * COOK_MULT * hf.time))
+  assert.equal(tagOf("cooked fish + herbs"), hf.tag)
+  const trail = dishDef("cooked berries + nuts")
+  assert.equal(trail.shelf, Math.round(Math.max(MEAL_SHELF_MIN, RESOURCES.berries.shelf * 2) * comboOf(["berries", "nuts"]).keeps))
+  // more besides is fine, and the combo naming the most kinds wins
+  assert.equal(comboOf(["fish", "hare", "herbs", "roots"]).name, "hunter's stew")
+  assert.equal(comboOf(["plants", "roots"]), null)
+  // every combo names real raw food, and wears a face nothing else you can carry wears
+  const faces = new Set([...Object.keys(RESOURCES), ...Object.keys(RECIPES)].map(tagOf))
+  for (const c of COMBOS) {
+    assert.ok(c.kinds.length > 1, `${c.name} is not a mix`)
+    for (const k of c.kinds) assert.ok(RESOURCES[k]?.food > 0 && !RESOURCES[k].cooked, `${c.name} names ${k}, which is not raw food`)
+    assert.ok(!faces.has(c.tag), `${c.name} wears "${c.tag}", which is taken`)
+    faces.add(c.tag)
+    assert.equal(dishDef(dishOf(c.kinds)).combo, c.name, `${c.name}'s own kinds don't make it`)
+  }
+})
+
+test("the helpers stock a kitchen and stand a skill at a level; a branch burns for FUEL_COOKS cooks; every raw kind in one pot at cook 15", () => {
+  const sim = createSim({ pubkey: "0".repeat(64), worldKey: "abcdef01".repeat(8) })
+  sim.dispatch({ type: "clearMap" })
+  sim.dispatch({ type: "move", target: [0, 0] })
+  sim.dispatch({ type: "rest" }) // a mapped world: a whole day to cook in
+  const raw = Object.keys(RESOURCES).filter(k => RESOURCES[k].food > 0 && !RESOURCES[k].cooked)
+  assert.ok(sim.dispatch({ type: "stockPantry" }).ok, "home's centre is a hearth")
+  assert.deepEqual(sim.pantry(), raw.map(k => ({ k, n: 1 })), "a unit of every raw food, in the table's order")
+  assert.equal(sim.inventory()[FUEL], COOK_FUEL, "…and the fuel for one fire")
+  const pot = Object.fromEntries(raw.map(k => [k, 1]))
+  assert.equal(sim.cookPlan(pot).why, `needs cook ${raw.length}`)
+  assert.ok(sim.dispatch({ type: "setSkill", skill: "cook", level: SKILL_CAP }).ok)
+  assert.equal(sim.skillOf("cook"), SKILL_CAP)
+  assert.ok(sim.dispatch({ type: "setSkill", skill: "cook", level: 4 }).ok, "…and back down")
+  assert.equal(sim.skillOf("cook"), 4)
+  assert.ok(sim.dispatch({ type: "setSkill", skill: "cook", level: SKILL_CAP }).ok)
+  // A BRANCH BURNS FOR FUEL_COOKS COOKS (RULES 57, 60): single pots on the one
+  // branch — the first takes it off your back, the rest ask for nothing — and
+  // the next finds the fire wanting another
+  assert.equal(sim.fuel(), 0, "nothing on the fire yet")
+  for (let i = 0; i < FUEL_COOKS; i++) {
+    const one = sim.cookPlan({ [raw[i]]: 1 })
+    assert.equal(one.burn, i === 0 ? COOK_FUEL : 0, `cook ${i + 1}: the fire ${i ? "wants no fuel" : "wants a branch"}`)
+    assert.equal(one.why, null)
+    assert.ok(sim.dispatch({ type: "cook", pot: { [raw[i]]: 1 } }).ok)
+    assert.equal(sim.fuel(), FUEL_COOKS - 1 - i, "a cook spends one of the branch's cooks")
+    assert.equal(sim.inventory()[FUEL], undefined, "the one branch went on the fire with the first cook, and stayed gone")
+  }
+  const next = sim.cookPlan({ [raw[FUEL_COOKS]]: 1 })
+  assert.equal(next.burn, COOK_FUEL, "the branch is spent: the fire wants another")
+  assert.equal(next.why, `needs ${COOK_FUEL} more ${FUEL}`)
+  assert.ok(!sim.dispatch({ type: "cook", pot: { [raw[FUEL_COOKS]]: 1 } }).ok, "cooked on a dead fire")
+  // stocked again — a branch among it — the whole pantry goes into one pot at 15
+  assert.ok(sim.dispatch({ type: "stockPantry" }).ok)
+  const plan = sim.cookPlan(pot)
+  assert.equal(plan.why, null)
+  assert.equal(plan.burn, COOK_FUEL)
+  assert.ok(Math.abs(plan.cost - (COOK_MIN + COOK_KIND_MIN * (raw.length - 1)) / 2) < 1e-9, "half the minutes at 15")
+  assert.ok(sim.dispatch({ type: "cook", pot }).ok)
+  assert.equal(sim.inventory()[dishOf(raw)], 1, "one meal of everything")
+  assert.equal(sim.inventory()[FUEL], undefined, "…and the new branch on the fire")
+  assert.equal(sim.fuel(), FUEL_COOKS - 1)
+  assert.equal(dishDef(dishOf(raw)).combo, "hunter's stew", "of the combos it holds, the biggest and richest names it")
+  // out on the land the pantry helper is refused — a pack that heavy could strand you
+  const off = Hex.neighbors([0, 0]).find(n => sim.canMove(n))
+  assert.ok(off && sim.dispatch({ type: "move", target: off }).ok)
+  assert.ok(!sim.dispatch({ type: "stockPantry" }).ok, "stocked away from a hearth")
+  const sig = stateSig(sim)
+  const inv = JSON.stringify(sim.inventory())
+  const log = sim.log().slice()
+  sim.beginReplay()
+  for (const a of log) assert.ok(sim.apply(a).ok)
+  sim.endReplay()
+  assert.equal(stateSig(sim), sig, "the helpers' day diverged on replay")
+  assert.equal(JSON.stringify(sim.inventory()), inv)
+  assert.equal(sim.skillOf("cook"), SKILL_CAP)
+  assert.equal(sim.fuel(), FUEL_COOKS - 1, "the fire replays with the day")
+})
+
+test("the pot: a kind per cook level, a meal takes one of each, a branch burns, and it replays", () => {
+  // a pack for the kitchen — three plants, a fruit, and a branch for the fire — carried home
+  // (the branch FIRST: it is the far trip, and it is the one thing here that keeps)
+  const want = { [FUEL]: COOK_FUEL, plants: 3, fruit: 1 }
+  let sim = null
+  for (const c of "0123456789abcdef") {
+    const s2 = createSim({ pubkey: c.repeat(64), worldKey: worldKeyFor(c.repeat(64), SEED_ANGLE) })
+    s2.dispatch({ type: "clearMap" })
+    s2.dispatch({ type: "move", target: [0, 0] })
+    s2.dispatch({ type: "rest" })
+    if (!openWorld(s2)) continue // the raft found nowhere to land on this world
+    s2.dispatch({ type: "goHome" })
+    const avoid = new Set()
+    let ok = true
+    for (const [res, n] of Object.entries(want))
+      for (let i = 0; i < n && ok; i++) {
+        ok = !!gatherOutside(s2, res, avoid, true, res === FUEL ? 30 : 12) && s2.dispatch({ type: "gather", item: res }).ok
+        avoid.add(String(s2.view().player)) // one unit per node — the rest is regrowing
+      }
+    if (!ok || Object.entries(want).some(([res, n]) => (s2.inventory()[res] || 0) < n)) continue
+    if (!s2.dispatch({ type: "goHome" }).ok) continue
+    sim = s2
+    break
+  }
+  assert.ok(sim, "no seed stocked the kitchen and got it home")
+  assert.ok(sim.atRestSpot(), "home is a hearth")
+  assert.deepEqual(sim.pantry(), [{ k: "plants", n: 3 }, { k: "fruit", n: 1 }], "the pantry is the raw food, in the table's order")
+
+  // ONE KIND AT LEVEL ONE: a second ingredient needs the level for it
+  assert.equal(sim.skillOf("cook"), 1)
+  assert.equal(sim.cookPlan({ plants: 1 }).why, null)
+  assert.equal(sim.cookPlan({ plants: 1, fruit: 1 }).why, "needs cook 2")
+  assert.ok(!sim.dispatch({ type: "cook", pot: { plants: 1, fruit: 1 } }).ok, "two kinds cooked at level 1")
+  assert.ok(!sim.dispatch({ type: "cook", pot: {} }).ok, "an empty pot cooked")
+  assert.ok(!sim.dispatch({ type: "cook", pot: { wood: 1 } }).ok, "wood is not food")
+  assert.ok(!sim.dispatch({ type: "cook", item: "plants" }).ok, "the old one-item cook is gone")
+  assert.equal(sim.cookPlan({ plants: COOK_SERVINGS + 1 }).why, `skewers take ${COOK_SERVINGS} of a kind`)
+
+  // the helper stands a skill AT a level, its shape empty
+  assert.ok(sim.dispatch({ type: "setSkill", skill: "cook", level: 2 }).ok)
+  assert.deepEqual(sim.skillProgress("cook"), { level: 2, sides: 2, filled: 0, partial: 0 })
+  assert.ok(!sim.dispatch({ type: "setSkill", skill: "cook", level: 16 }).ok, "past the cap")
+  assert.ok(!sim.dispatch({ type: "setSkill", skill: "cook", level: 0 }).ok, "under where everyone starts")
+  assert.ok(!sim.dispatch({ type: "setSkill", skill: "nonsense", level: 3 }).ok)
+
+  // A MEAL TAKES ONE OF EACH: 2 plants + 1 fruit is one dish and one cooked plants
+  const pot = { plants: 2, fruit: 1 }
+  const plan = sim.cookPlan(pot)
+  assert.equal(plan.why, null)
+  assert.equal(plan.servings, 2)
+  assert.deepEqual(
+    plan.meals.map(m => [m.k, m.n]),
+    [
+      ["cooked fruit + plants", 1],
+      ["cooked plants", 1]
+    ]
+  )
+  assert.ok(
+    Math.abs(plan.cost - (COOK_MIN + COOK_KIND_MIN + COOK_SERVING_MIN) * (1 - 2 / 30)) < 1e-9,
+    `the minutes are in the variety (${plan.cost})`
+  )
+  const e0 = sim.energy()
+  const load0 = sim.loadOf()
+  assert.ok(sim.dispatch({ type: "cook", pot }).ok, "the pot was refused")
+  assert.ok(Math.abs(e0 - sim.energy() - plan.cost) < 1e-9, "the cook charged its plan")
+  assert.deepEqual(sim.inventory(), { plants: 1, "cooked fruit + plants": 1, "cooked plants": 1 }, "the pot became meals, and the branch went on the fire")
+  assert.ok(sim.loadOf() < load0, "cooking never makes the pack heavier")
+
+  // A BRANCH BURNS FOR FUEL_COOKS COOKS (RULES 57, 60): the one that went on
+  // has cooks left in it, so the next cook asks for no fuel — the pack is bare
+  // of it and the fire does not care
+  assert.equal(sim.fuel(), FUEL_COOKS - 1, "the first cook spent one of the branch's cooks")
+  const next = sim.cookPlan({ plants: 1 })
+  assert.equal(next.burn, 0, "the fire wants no fuel while the last branch burns")
+  assert.notEqual(next.why, `needs ${COOK_FUEL} more ${FUEL}`, "…so a bare pack is no refusal")
+
+  // a dish is eaten like anything else, and is worth what its name says
+  const dish = dishDef("cooked fruit + plants")
+  const clock0 = sim.hungerLeft()
+  assert.ok(sim.dispatch({ type: "eat", item: "cooked fruit + plants" }).ok)
+  assert.ok(Math.abs(sim.hungerLeft() - (clock0 - EAT_MIN + dish.food)) < 1e-9, "the dish pushed the meal clock on by its own worth")
+
+  // the whole run replays to the same state
+  const sig = stateSig(sim)
+  const inv = JSON.stringify(sim.inventory())
+  const log = sim.log().slice()
+  sim.beginReplay()
+  for (const a of log) assert.ok(sim.apply(a).ok)
+  sim.endReplay()
+  assert.equal(stateSig(sim), sig, "the kitchen's day diverged on replay")
+  assert.equal(JSON.stringify(sim.inventory()), inv, "…and so did the pack")
+  assert.equal(sim.skillOf("cook"), 2, "…and the helper's level")
+})
+
+// ── the globe laid flat (RULES 51) ───────────────────
+test("the world is seventy-two boards: sixty hexagons and twelve pentagons with a bite", () => {
+  const sim = createSim({ angle: 137 })
+  const boards = sim.boards()
+  assert.equal(boards.length, 72)
+  const pent = boards.filter(c => sim.boardInfo(c).sides === 5)
+  assert.equal(pent.length, 12)
+  for (const c of boards) assert.equal(sim.tilesOf(c), sim.boardInfo(c).sides === 5 ? BOARD_TILES - BITE_TILES : BOARD_TILES)
+  assert.equal(BITE_TILES, 10)
+  for (const c of pent) {
+    const centre = sim.centreOf(c)
+    const at = h => sim.onMap([centre[0] + h[0], centre[1] + h[1]])
+    // the wedge: ten interior tiles are void, and the lifted edge's four side
+    // tiles with them; its far corner survives as the flanking neighbour's own
+    // confluence, unless that neighbour was torn away to another bank
+    assert.equal(Hex.range(RINGS).filter(h => !at(h)).length, BITE_TILES, `pentagon ${c} keeps the wrong interior`)
+    assert.ok(at([0, 0]))
+    assert.equal(Hex.neighbors([0, 0]).filter(at).length, 5, "a pentagon's centre tile has five neighbours")
+  }
+  // an edge's four side tiles exist exactly when that edge carries a river on
+  // the map; a wedge's never (RULES 53: a torn river keeps one bank)
+  const corner = k => Hex.length(Hex.fromKey(k)) === RIVER_RING && DIRS.some(d => Hex.fromKey(k)[0] === RIVER_RING * d.q && Hex.fromKey(k)[1] === RIVER_RING * d.r)
+  for (const c of boards) {
+    const centre = sim.centreOf(c)
+    const info = sim.boardInfo(c)
+    EDGE_RIVER.forEach((tiles, i) => {
+      const river = (info.rivers >> SUPER_TO_PARENT_DIR[0][i]) & 1
+      for (const k of tiles) {
+        if (corner(k)) continue
+        const h = Hex.fromKey(k)
+        const is = sim.isRiver([centre[0] + h[0], centre[1] + h[1]])
+        assert.equal(is, !!river, `board ${c} edge ${i}: river ${river}, tile ${k} reads river ${is}`)
+      }
+    })
+  }
+  // home is a hexagon, and its pentagon is the board the gate opens onto
+  assert.equal(sim.boardInfo([0, 0]).sides, 6)
+  const gd = SUPER_TO_PARENT_DIR[0][riverLobesOf(gateEdgeFor(137).river)[0]]
+  assert.equal(sim.boardInfo([DIRS[gd].q, DIRS[gd].r])?.sides, 5, "home's pentagon sits across the gate")
+  // every hexagon touches exactly one pentagon: twelve flowers of six
+  for (const c of boards) {
+    if (sim.boardInfo(c).sides === 5) continue
+    const touching = Hex.neighbors(c).filter(n => sim.boardInfo(n)?.sides === 5).length
+    assert.ok(touching <= 1, `hexagon ${c} touches ${touching} pentagons on the flat map`)
+  }
+})
+
+test("the rim is water: a torn river keeps one bank, and nothing lies beyond", () => {
+  const sim = createSim({ angle: 137 })
+  const reach = sim.mapReach() + RIVER_RING + 2
+  let rivers = 0
+  let rim = 0
+  let voidBeyond = 0
+  for (const g of Hex.range(reach)) {
+    if (!sim.isRiver(g)) continue
+    rivers++
+    const banks = Hex.neighbors(g).filter(n => sim.boardHexOf(n)).length
+    const holes = Hex.neighbors(g).filter(n => !sim.onMap(n)).length
+    if (holes) rim++
+    if (holes && banks >= 1) voidBeyond++
+    assert.ok(banks >= 1, `river tile ${g} touches no board`)
+  }
+  // no river is doubled: 840 side tiles once and 140 confluences once, plus a
+  // corner for each split confluence that sits beside a kept edge (RULES 53)
+  assert.ok(rivers >= 210 * 4 + 140 && rivers <= 210 * 4 + 2 * 140, `${rivers} river tiles`)
+  assert.ok(rim > 0, "some rivers are the rim")
+  assert.equal(rim, voidBeyond, "every rim river still has a bank to stand on it from")
+  // the map is far bigger than the old hexagon of boards
+  assert.ok(sim.mapReach() > 4 * (2 * RINGS + 2), "the net's tips lie past four board pitches")
+})
+
+test("the angle is the cut: one angle, one map, always", () => {
+  const same = (a, b) => JSON.stringify(a.boards().map(c => [c, a.boardInfo(c).sides, a.boardInfo(c).gapDir])) === JSON.stringify(b.boards().map(c => [c, b.boardInfo(c).sides, b.boardInfo(c).gapDir]))
+  assert.ok(same(createSim({ angle: 137 }), createSim({ angle: 137 })), "the same angle must lay the same map")
+  assert.ok(!same(createSim({ angle: 137 }), createSim({ angle: 138 })), "neighbouring angles lay different maps")
+  assert.ok(!same(createSim({ angle: 137 }), createSim({ angle: 317 })), "the opposite angle lays a different map too")
+})
+
+test("bed is due 16 hours after waking, a pin like the meal, and the budget runs to the full day (RULES 52)", () => {
+  const sim = createSim()
+  assert.ok(sim.dispatch({ type: "clearMap" }).ok)
+  assert.ok(sim.dispatch({ type: "move", target: [0, 0] }).ok)
+  assert.ok(sim.dispatch({ type: "rest" }).ok)
+  assert.equal(sim.dayBudget(), FREE_CAP, "a mapped world's budget is the whole day, not the waking window")
+  assert.equal(sim.bedDue(), WAKE_CAP, "bed is due the day less the sleep it owes")
+  assert.equal(sim.sleepLeft(), WAKE_CAP, "waking sets bed 16 hours out")
+  assert.equal(sim.timeLeft(), Math.min(FREE_CAP, HUNGER_MAX, WAKE_CAP), "the nearest of budget, meal and bed is what there is to spend")
+  assert.ok(sim.sleepLeft() > sim.hungerLeft(), "fresh, the meal binds before bed")
+})
+

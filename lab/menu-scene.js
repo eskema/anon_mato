@@ -29,8 +29,8 @@ export function drawMenuScene(ctx, { w, h, ink, surface, opts, sample }) {
     cs.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)))
     ctx.closePath()
   }
-  // THE TILE — exactly the menu's growing hex (render.js tileHex): an opaque
-  // paper coat, the tile's dress over it, a 0.35-ink edge.
+  // THE TILE — the coat, dress and edge of the menu's growing hex (render.js
+  // tileHex): an opaque paper coat, the tile's dress over it, a 0.35-ink edge.
   const sT = sample("tile.scale")
   const aT = sample("tile.opacity")
   const r2 = size * Math.max(0.001, sT)
@@ -82,8 +82,7 @@ export function drawMenuScene(ctx, { w, h, ink, surface, opts, sample }) {
   const lift = sample("player.lift")
   const aP = sample("player.opacity")
   if (aP > 0.002 && sP > 0.002) {
-    ctx.globalAlpha = aP
-    drawPlayer(ctx, cx, cy - lift * size, size * (2 / 3) * sP, ink, surface, playerWeight(size * sP))
+    drawPlayer(ctx, cx, cy - lift * size, size * (2 / 3) * sP, ink, surface, playerWeight(size * sP), 1, aP)
     ctx.globalAlpha = 1
   }
 }

@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>anon&amp;mato icons</title>
+<style>
+@font-face { font-family: "Source Code Pro"; src: url(data:font/woff2;base64,/*FONT*/) format("woff2"); font-weight: 400; }
+:root {
+  --paper: #f4f1ea; --ink: #141414; --soft: rgba(20,20,20,.55); --faint: rgba(20,20,20,.09); --line: rgba(20,20,20,.16);
+  --size: 72px; --font: "Source Code Pro", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --paper: #121212; --ink: #efebe2; --soft: rgba(239,235,226,.55); --faint: rgba(239,235,226,.08); --line: rgba(239,235,226,.16); }
+}
+:root[data-theme="dark"] { --paper: #121212; --ink: #efebe2; --soft: rgba(239,235,226,.55); --faint: rgba(239,235,226,.08); --line: rgba(239,235,226,.16); }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.45 var(--font); }
+body { transition: background .4s cubic-bezier(.25,1,.5,1), color .4s cubic-bezier(.25,1,.5,1); }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+main { display: grid; gap: 56px; padding: 40px 16px 96px; max-width: 1280px; margin: 0 auto; }
+header { display: grid; grid-template-columns: auto 1fr; gap: 16px 28px; align-items: center; }
+.mark { width: 88px; height: 88px; }
+h1 { margin: 0; font-weight: 400; font-size: 28px; letter-spacing: .02em; }
+.lede { margin: 6px 0 0; color: var(--soft); max-width: 64ch; }
+.bar { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, max-content)); gap: 10px 22px; align-items: center; position: sticky; top: 0; z-index: 3; background: var(--paper); padding: 12px 0; border-bottom: 1px solid var(--line); }
+.bar label { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
+.bar input[type=range] { accent-color: var(--ink); width: 130px; }
+.chip { border: 1px solid var(--line); padding: 4px 12px; border-radius: 2px; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+section { display: grid; gap: 18px; }
+.head { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: baseline; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.head h2 { margin: 0; font-weight: 400; font-size: 20px; }
+.head p { margin: 0; color: var(--soft); }
+.head .n { color: var(--soft); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--size) + 44px), 1fr)); gap: 8px; }
+.tile { display: grid; justify-items: center; gap: 6px; padding: 14px 4px 10px; border-radius: 3px; position: relative; }
+.tile:hover, .tile:focus-visible { background: var(--faint); outline: none; }
+.tile svg { width: var(--size); height: var(--size); overflow: visible; }
+.tile .k { color: var(--soft); text-align: center; overflow-wrap: anywhere; max-width: 100%; }
+.tile:hover .k { color: var(--ink); }
+svg .g { fill: none; stroke: var(--line); stroke-width: .6px; vector-effect: non-scaling-stroke; opacity: 0; transition: opacity .35s cubic-bezier(.25,1,.5,1); }
+svg .hx { fill: none; stroke: var(--line); stroke-width: 1px; vector-effect: non-scaling-stroke; opacity: 0; transition: opacity .35s cubic-bezier(.25,1,.5,1); }
+.tile:hover .g, .tile:hover .hx, body.lat .g, body.lat .hx { opacity: 1; }
+svg .ink { fill: var(--ink); }
+.tri-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--size) + 60px), 1fr)); gap: 8px; }
+.tri { display: grid; grid-template-rows: repeat(3, auto) auto; justify-items: center; gap: 4px; padding: 12px 4px; border-radius: 3px; }
+.tri:hover { background: var(--faint); }
+.tri svg { width: calc(var(--size) * .8); height: calc(var(--size) * .8); cursor: pointer; }
+.tri .k { color: var(--soft); }
+.sub2 { color: var(--soft); margin: 10px 0 0; }
+dialog { border: 1px solid var(--line); background: var(--paper); color: var(--ink); padding: 0; width: min(880px, calc(100vw - 32px)); max-height: calc(100vh - 32px); border-radius: 4px; }
+dialog::backdrop { background: rgba(0,0,0,.45); backdrop-filter: blur(3px); }
+.insp { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 24px; padding: 24px; }
+.insp .big svg { width: 100%; height: auto; display: block; }
+.insp .big .g, .insp .big .hx { opacity: 1; }
+.insp .big path.t { fill: var(--ink); opacity: 0; animation: pop .5s cubic-bezier(.25,1,.5,1) forwards; }
+@keyframes pop { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
+.insp .side { display: grid; align-content: start; gap: 14px; }
+.insp h3 { margin: 0; font-weight: 400; font-size: 24px; overflow-wrap: anywhere; }
+.insp .fam { color: var(--soft); }
+.insp .concept { margin: 0; }
+.sizes { display: grid; grid-template-columns: repeat(2, auto); justify-content: start; gap: 8px; }
+.sizes > div { display: grid; grid-auto-flow: column; gap: 14px; align-items: center; padding: 10px 14px; border-radius: 3px; }
+.sizes .onink { background: var(--ink); }
+.sizes .onink .ink { fill: var(--paper); }
+.acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, max-content)); gap: 8px; }
+.toast { color: var(--soft); min-height: 1.45em; }
+footer { color: var(--soft); border-top: 1px solid var(--line); padding-top: 16px; display: grid; gap: 8px; }
+footer a { color: var(--ink); }
+@media (max-width: 700px) {
+  .insp { grid-template-columns: 1fr; }
+  header { grid-template-columns: 1fr; }
+  .head { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <svg class="mark" viewBox="-1.05 -1.05 2.1 2.1" id="mark"></svg>
+    <div>
+      <h1>anon&amp;mato — the lattice, everywhere</h1>
+      <p class="lede" id="lede"></p>
+    </div>
+    <div class="bar">
+      <label>size <input type="range" id="size" min="16" max="128" step="4" value="72"></label>
+      <button class="chip" id="lat" aria-pressed="false">lattice</button>
+      <button class="chip" id="theme" aria-pressed="false">ink / paper</button>
+      <button class="chip" id="dl">download json</button>
+    </div>
+  </header>
+  <div id="fams" style="display:grid;gap:56px"></div>
+  <footer>
+    <div>Every icon is the game's own wedge data — <code>{ n: 8, fill: ["face:i:j:half", …], lines: [] }</code> on your 8-lattice. Click one, then “copy”, and paste it straight into the icon creator.</div>
+  </footer>
+</main>
+<dialog id="dlg">
+  <div class="insp">
+    <div class="big" id="big"></div>
+    <div class="side">
+      <div class="fam" id="ifam"></div>
+      <h3 id="ikey"></h3>
+      <p class="concept" id="iconcept"></p>
+      <div class="sizes" id="isizes"></div>
+      <div class="acts">
+        <button class="chip" id="prev">← prev</button>
+        <button class="chip" id="next">next →</button>
+        <button class="chip" id="copy">copy</button>
+        <button class="chip" id="replay">redraw</button>
+        <button class="chip" id="shut">close</button>
+      </div>
+      <div class="toast" id="toast"></div>
+    </div>
+  </div>
+</dialog>
+<script>
+/*DATA*/
+const NS = "http://www.w3.org/2000/svg"
+const SQ = Math.sqrt(3) / 2
+const HEX = [...Array(6)].map((_, i) => { const a = (60 * i - 90) * Math.PI / 180; return [Math.cos(a), Math.sin(a)] })
+const hexD = "M" + HEX.map(p => p.map(n => n.toFixed(4)).join(" ")).join("L") + "Z"
+const gridD = Object.values(LATTICE).map(p => `M${p[0]} ${p[1]}L${p[2]} ${p[3]}L${p[4]} ${p[5]}Z`).join("")
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))
+const svg = (d, extra = "") => `<svg viewBox="-1.05 -1.05 2.1 2.1" aria-hidden="true"><path class="g" d="${gridD}"/><path class="hx" d="${hexD}"/><path class="ink" fill-rule="evenodd" d="${d}"/>${extra}</svg>`
+const flat = []
+const byKey = {}
+const fillOf = {}
+FAMS.forEach(f => f.items.forEach(it => { byKey[f.name + "/" + it.key] = it; fillOf[it.key] = fillOf[it.key] || it }))
+document.getElementById("lede").textContent = `${TOTAL} new icons across ${FAMS.length - 1} families, drawn on the same 8-lattice as the twenty-one you made by hand. Hover to see the grid; click to watch one rebuild itself triangle by triangle.`
+// the mark: the cube, if the menu drew one, else the hand-drawn scout
+const markItem = (FAMS.find(f => f.name === "menu") || { items: [] }).items.find(i => i.key === "cube") || FAMS[0].items[0]
+document.getElementById("mark").innerHTML = `<path class="hx" style="opacity:1" d="${hexD}"/><path class="ink" fill-rule="evenodd" d="${markItem.d}"/>`
+const root = document.getElementById("fams")
+const GRAMMAR = /^(.*):(cooked|spoiled)$/
+FAMS.forEach(f => {
+  const sec = document.createElement("section")
+  const plain = f.items.filter(it => !(f.name === "kitchen" && GRAMMAR.test(it.key)))
+  const gram = f.items.filter(it => f.name === "kitchen" && GRAMMAR.test(it.key))
+  sec.innerHTML = `<div class="head"><h2>${esc(f.title)}</h2><p>${esc(f.sub)}</p><span class="n">${f.items.length}</span></div><div class="grid"></div>`
+  const grid = sec.querySelector(".grid")
+  plain.forEach(it => {
+    const b = document.createElement("button")
+    b.className = "tile"
+    b.title = it.concept || it.key
+    b.innerHTML = svg(it.d) + `<span class="k">${esc(it.key)}</span>`
+    const idx = flat.push({ fam: f, it }) - 1
+    b.onclick = () => inspect(idx)
+    grid.appendChild(b)
+  })
+  if (gram.length) {
+    const foods = [...new Set(gram.map(g => g.key.match(GRAMMAR)[1]))]
+    const wrap = document.createElement("div")
+    wrap.innerHTML = `<p class="sub2">raw · cooked · spoiled — one rule each, applied to every food</p><div class="tri-grid"></div>`
+    const tg = wrap.querySelector(".tri-grid")
+    foods.forEach(food => {
+      const card = document.createElement("div")
+      card.className = "tri"
+      const raw = fillOf[food]
+      ;[raw, gram.find(g => g.key === food + ":cooked"), gram.find(g => g.key === food + ":spoiled")].forEach(it => {
+        if (!it) { card.appendChild(document.createElement("div")); return }
+        const holder = document.createElement("div")
+        holder.innerHTML = svg(it.d)
+        const fam = raw === it ? FAMS.find(q => q.items.includes(it)) : f
+        const idx = flat.push({ fam, it }) - 1
+        holder.firstChild.onclick = () => inspect(idx)
+        holder.firstChild.setAttribute("role", "button")
+        holder.title = it.key
+        card.appendChild(holder)
+      })
+      const k = document.createElement("span")
+      k.className = "k"
+      k.textContent = food
+      card.appendChild(k)
+      tg.appendChild(card)
+    })
+    sec.appendChild(wrap)
+  }
+  root.appendChild(sec)
+})
+// controls
+const sizeEl = document.getElementById("size")
+const setSize = v => document.documentElement.style.setProperty("--size", v + "px")
+sizeEl.oninput = () => { setSize(sizeEl.value); try { localStorage.setItem("amIconsSize", sizeEl.value) } catch {} }
+try { const s = localStorage.getItem("amIconsSize"); if (s) { sizeEl.value = s; setSize(s) } } catch {}
+const latBtn = document.getElementById("lat")
+latBtn.onclick = () => { const on = document.body.classList.toggle("lat"); latBtn.setAttribute("aria-pressed", on) }
+const themeBtn = document.getElementById("theme")
+const curDark = () => { const t = document.documentElement.dataset.theme; return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches }
+themeBtn.onclick = () => { const next = curDark() ? "light" : "dark"; document.documentElement.dataset.theme = next; try { localStorage.setItem("amIconsTheme", next) } catch {} }
+try { const t = localStorage.getItem("amIconsTheme"); if (t) document.documentElement.dataset.theme = t } catch {}
+document.getElementById("dl").onclick = () => {
+  const out = {}
+  FAMS.filter(f => f.name !== "hand").forEach(f => f.items.forEach(it => { out[it.key] = { n: 8, fill: it.fill, lines: [] } }))
+  const a = document.createElement("a")
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 1)], { type: "application/json" }))
+  a.download = "anon-mato-icons.json"
+  a.click()
+}
+// inspector
+const dlg = document.getElementById("dlg")
+let cur = 0
+function build(it) {
+  // rebuild triangle by triangle, the pen sweeping top-down then left-right
+  const tris = it.fill.map(id => ({ id, p: LATTICE[id] })).map(t => ({ ...t, cx: (t.p[0] + t.p[2] + t.p[4]) / 3, cy: (t.p[1] + t.p[3] + t.p[5]) / 3 }))
+  tris.sort((a, b) => a.cy - b.cy || a.cx - b.cx)
+  const step = Math.min(14, 1400 / Math.max(1, tris.length))
+  const paths = tris.map((t, i) => `<path class="t" style="animation-delay:${(i * step).toFixed(0)}ms;transform-origin:${t.cx}px ${t.cy}px" d="M${t.p[0]} ${t.p[1]}L${t.p[2]} ${t.p[3]}L${t.p[4]} ${t.p[5]}Z"/>`).join("")
+  document.getElementById("big").innerHTML = `<svg viewBox="-1.05 -1.05 2.1 2.1"><path class="g" d="${gridD}"/><path class="hx" d="${hexD}"/>${paths}</svg>`
+}
+function inspect(i) {
+  cur = (i + flat.length) % flat.length
+  const { fam, it } = flat[cur]
+  build(it)
+  document.getElementById("ifam").textContent = `${fam.title} · ${it.fill.length} triangles`
+  document.getElementById("ikey").textContent = it.key
+  document.getElementById("iconcept").textContent = it.concept || ""
+  const small = s => `<svg viewBox="-1.05 -1.05 2.1 2.1" width="${s}" height="${s}"><path class="ink" fill-rule="evenodd" d="${it.d}"/></svg>`
+  document.getElementById("isizes").innerHTML = `<div>${small(16)}${small(24)}${small(40)}</div><div class="onink">${small(16)}${small(24)}${small(40)}</div>`
+  document.getElementById("toast").textContent = ""
+  if (!dlg.open) dlg.showModal()
+}
+document.getElementById("prev").onclick = () => inspect(cur - 1)
+document.getElementById("next").onclick = () => inspect(cur + 1)
+document.getElementById("replay").onclick = () => build(flat[cur].it)
+document.getElementById("shut").onclick = () => dlg.close()
+dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close() })
+document.getElementById("copy").onclick = async () => {
+  const it = flat[cur].it
+  const txt = JSON.stringify({ n: 8, fill: it.fill, lines: [] })
+  try { await navigator.clipboard.writeText(txt); document.getElementById("toast").textContent = "copied — paste it into the creator" }
+  catch { document.getElementById("toast").textContent = "clipboard blocked here — use download json" }
+}
+addEventListener("keydown", e => {
+  if (!dlg.open) return
+  if (e.key === "ArrowRight") inspect(cur + 1)
+  if (e.key === "ArrowLeft") inspect(cur - 1)
+})
+</script>
+</body>
+</html>

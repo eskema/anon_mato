@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>anon&amp;mato free icons</title>
+<style>
+@font-face { font-family: "Source Code Pro"; src: url(data:font/woff2;base64,/*FONT*/) format("woff2"); font-weight: 400; }
+:root { --paper: #f4f1ea; --ink: #141414; --soft: rgba(20,20,20,.55); --faint: rgba(20,20,20,.07); --line: rgba(20,20,20,.16); --size: 88px; --font: "Source Code Pro", ui-monospace, Menlo, monospace; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --paper: #121212; --ink: #efebe2; --soft: rgba(239,235,226,.55); --faint: rgba(239,235,226,.07); --line: rgba(239,235,226,.16); } }
+:root[data-theme="dark"] { --paper: #121212; --ink: #efebe2; --soft: rgba(239,235,226,.55); --faint: rgba(239,235,226,.07); --line: rgba(239,235,226,.16); }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.45 var(--font); }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+/*ICONCSS*/
+.lat { fill: var(--ink); }
+main { display: grid; gap: 56px; padding: 40px 16px 96px; max-width: 1180px; margin: 0 auto; }
+header { display: grid; gap: 10px; }
+h1 { margin: 0; font-weight: 400; font-size: 28px; }
+.lede { margin: 0; color: var(--soft); max-width: 66ch; }
+.bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, max-content)); gap: 10px 22px; align-items: center; position: sticky; top: 0; z-index: 3; background: var(--paper); padding: 12px 0; border-bottom: 1px solid var(--line); }
+.bar label { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
+.bar input[type=range] { accent-color: var(--ink); width: 130px; }
+.chip { border: 1px solid var(--line); padding: 4px 12px; border-radius: 2px; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+section { display: grid; gap: 18px; }
+.head { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: baseline; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.head h2 { margin: 0; font-weight: 400; font-size: 20px; }
+.head p, .head .n { margin: 0; color: var(--soft); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--size) + 48px), 1fr)); gap: 8px; }
+.tile { display: grid; justify-items: center; gap: 8px; padding: 16px 4px 12px; border-radius: 3px; }
+.tile:hover, .tile:focus-visible { background: var(--faint); outline: none; }
+.tile .pair { display: grid; grid-auto-flow: column; gap: 10px; align-items: center; }
+.tile svg.ic { width: var(--size); height: var(--size); overflow: visible; }
+.tile svg.lt { width: calc(var(--size) * .55); height: calc(var(--size) * .55); display: none; opacity: .55; }
+body.cmp .tile svg.lt { display: block; }
+.tile .k { color: var(--soft); text-align: center; }
+.tile:hover .k { color: var(--ink); }
+dialog { border: 1px solid var(--line); background: var(--paper); color: var(--ink); padding: 0; width: min(860px, calc(100vw - 32px)); max-height: calc(100vh - 32px); border-radius: 4px; }
+dialog::backdrop { background: rgba(0,0,0,.45); backdrop-filter: blur(3px); }
+.insp { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px; padding: 24px; }
+.insp .big svg { width: 100%; height: auto; display: block; }
+.insp .side { display: grid; align-content: start; gap: 14px; }
+.insp h3 { margin: 0; font-weight: 400; font-size: 24px; }
+.insp .fam, .toast { color: var(--soft); }
+.insp .concept { margin: 0; }
+.sizes { display: grid; grid-template-columns: repeat(2, auto); justify-content: start; gap: 8px; }
+.sizes > div { display: grid; grid-auto-flow: column; gap: 14px; align-items: center; padding: 10px 14px; border-radius: 3px; }
+.acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, max-content)); gap: 8px; }
+.guide { fill: none; stroke: var(--line); stroke-dasharray: .02 .03; stroke-width: .006; }
+@media (max-width: 700px) { .insp { grid-template-columns: 1fr; } .head { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<pattern id="hatch" patternUnits="userSpaceOnUse" width=".09" height=".09" patternTransform="rotate(-30)"><rect width=".09" height=".032" style="fill:var(--ink)"/></pattern>
+<pattern id="hatchI" patternUnits="userSpaceOnUse" width=".09" height=".09" patternTransform="rotate(-30)"><rect width=".09" height=".032" style="fill:var(--paper)"/></pattern>
+</defs></svg>
+<main>
+  <header>
+    <h1><!--TITLE--></h1>
+    <p class="lede" id="lede"></p>
+    <div class="bar">
+      <label>size <input type="range" id="size" min="16" max="160" step="4" value="88"></label>
+      <button class="chip" id="cmp" aria-pressed="false"></button>
+      <button class="chip" id="theme">ink / paper</button>
+    </div>
+  </header>
+  <div id="fams" style="display:grid;gap:56px"></div>
+</main>
+<dialog id="dlg">
+  <div class="insp">
+    <div class="big" id="big"></div>
+    <div class="side">
+      <div class="fam" id="ifam"></div>
+      <h3 id="ikey"></h3>
+      <p class="concept" id="iconcept"></p>
+      <div class="sizes" id="isizes"></div>
+      <div class="acts">
+        <button class="chip" id="prev">← prev</button>
+        <button class="chip" id="next">next →</button>
+        <button class="chip" id="copy">copy svg</button>
+        <button class="chip" id="shut">close</button>
+      </div>
+      <div class="toast" id="toast"></div>
+    </div>
+  </div>
+</dialog>
+<script>
+/*DATA*/
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))
+const ic = (g, cls = "ic", extra = "") => `<svg class="${cls}" viewBox="-1 -1 2 2" aria-hidden="true">${extra}${g}</svg>`
+const total = FAMS.reduce((s, f) => s + f.items.length, 0)
+document.getElementById("lede").textContent = `${total} icons with no lattice: circles, arcs and lines at any angle, all in one pen, with solid and hatch as the only other tones. Click one for a close-up; "${CMP_LABEL}" shows the earlier version next to each.`
+const flat = []
+const root = document.getElementById("fams")
+FAMS.forEach(f => {
+  const sec = document.createElement("section")
+  sec.innerHTML = `<div class="head"><h2>${esc(f.title)}</h2><p>${esc(f.sub)}</p><span class="n">${f.items.length}</span></div>`
+  const grid = document.createElement("div")
+  grid.className = "grid"
+  f.items.forEach(it => {
+    const b = document.createElement("button")
+    b.className = "tile"
+    b.title = it.concept
+    b.innerHTML = `<span class="pair">${ic(it.svg)}${it.cmp}</span><span class="k">${esc(it.key)}</span>`
+    const idx = flat.push({ f, it }) - 1
+    b.onclick = () => inspect(idx)
+    grid.appendChild(b)
+  })
+  sec.appendChild(grid)
+  root.appendChild(sec)
+})
+const sizeEl = document.getElementById("size")
+const setSize = v => document.documentElement.style.setProperty("--size", v + "px")
+sizeEl.oninput = () => { setSize(sizeEl.value); try { localStorage.setItem("amFreeSize", sizeEl.value) } catch {} }
+try { const s = localStorage.getItem("amFreeSize"); if (s) { sizeEl.value = s; setSize(s) } } catch {}
+const cmp = document.getElementById("cmp")
+cmp.textContent = CMP_LABEL
+cmp.onclick = () => cmp.setAttribute("aria-pressed", document.body.classList.toggle("cmp"))
+const isDark = () => { const t = document.documentElement.dataset.theme; return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches }
+document.getElementById("theme").onclick = () => { const t = isDark() ? "light" : "dark"; document.documentElement.dataset.theme = t; try { localStorage.setItem("amFreeTheme", t) } catch {} }
+try { const t = localStorage.getItem("amFreeTheme"); if (t) document.documentElement.dataset.theme = t } catch {}
+const dlg = document.getElementById("dlg")
+let cur = 0
+function inspect(i) {
+  cur = (i + flat.length) % flat.length
+  const { f, it } = flat[cur]
+  document.getElementById("big").innerHTML = ic(it.svg, "", `<circle class="guide" cx="0" cy="0" r=".85"/>`)
+  document.getElementById("ifam").textContent = f.title
+  document.getElementById("ikey").textContent = it.key
+  document.getElementById("iconcept").textContent = it.concept
+  const small = (s, inv) => `<svg viewBox="-1 -1 2 2" width="${s}" height="${s}" class="${inv ? "inv" : ""}">${it.svg}</svg>`
+  const sizes = document.getElementById("isizes")
+  sizes.innerHTML = `<div>${small(16)}${small(24)}${small(40)}</div><div class="inv-box">${small(16, 1)}${small(24, 1)}${small(40, 1)}</div>`
+  // the ink box: swap the two colours for what sits inside it
+  const box = sizes.querySelector(".inv-box")
+  const cs = getComputedStyle(document.documentElement)
+  const ink = cs.getPropertyValue("--ink").trim(), paper = cs.getPropertyValue("--paper").trim()
+  box.style.background = ink
+  box.querySelectorAll("svg").forEach(s => { s.style.setProperty("--ink", paper); s.style.setProperty("--paper", ink) })
+  document.getElementById("toast").textContent = ""
+  if (!dlg.open) dlg.showModal()
+}
+document.getElementById("prev").onclick = () => inspect(cur - 1)
+document.getElementById("next").onclick = () => inspect(cur + 1)
+document.getElementById("shut").onclick = () => dlg.close()
+dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close() })
+addEventListener("keydown", e => { if (!dlg.open) return; if (e.key === "ArrowRight") inspect(cur + 1); if (e.key === "ArrowLeft") inspect(cur - 1) })
+document.getElementById("copy").onclick = async () => {
+  const it = flat[cur].it
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 2 2" width="96" height="96"><style>${STANDALONE_CSS}</style>${STANDALONE_DEFS}${it.svg}</svg>`
+  try { await navigator.clipboard.writeText(svg); document.getElementById("toast").textContent = "copied as a standalone svg" }
+  catch { document.getElementById("toast").textContent = "clipboard blocked here" }
+}
+</script>
+</body>
+</html>

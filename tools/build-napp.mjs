@@ -1,11 +1,12 @@
 // Assemble a CLEAN napp folder — the launcher's local-folder picker uploads
 // every file it's handed, so it must see the game and nothing else: no
-// node_modules, no .git, no tests, no attic, no dev pages, no design canon.
+// node_modules, no .git, no tests, no attic, no design canon.
 //
-// What goes in is DERIVED, not listed: we walk the import graph out of
-// index.html's entry module, so a new lib/ file is included the moment
-// something imports it, and a dev-only one (styleguide, worldview, iconmaker…)
-// stays out because nothing in the game reaches it.
+// What goes in is DERIVED, not listed: we walk out of each PAGE — the game
+// (index.html) and the playground's own pages, which it frames by path — and
+// follow every module import, stylesheet and url() they reach. A new lib/ file
+// is included the moment something imports it, and one nothing reaches stays
+// out.
 //
 //   bun run napp   →   napp/  (gitignored)
 //
@@ -13,43 +14,52 @@
 // The launcher needs /index.html and /metadata.json with an .id — both land at
 // the root here, which is what makes the folder loadable as-is.
 import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync, statSync } from "node:fs"
-import { dirname, resolve, relative, join } from "node:path"
+import { dirname, resolve, relative, join, extname } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const OUT = join(ROOT, "napp")
-const ENTRY_HTML = "index.html"
-// what the launcher itself reads, plus the assets the page's own CSS pulls in —
-// the walker follows JS imports, and a url() in a <style> block isn't one
-const ROOT_FILES = [ENTRY_HTML, "metadata.json", "fonts/SourceCodePro-Regular.woff2", "fonts/SourceCodePro-Semibold.woff2"]
+// the game first, then the pages the playground frames (lib/cube.js PAGES)
+const PAGES = ["index.html", "guide.html", "styles.html", "world.html", "lab/animate.html"]
+// what the launcher itself reads, beside the pages
+const ROOT_FILES = ["metadata.json"]
 
 // every `from "…"` / `import "…"` / `import("…")` a module names, relative only
 // (nothing here resolves out of node_modules — the game is dependency-free)
 const IMPORT_RE = /(?:\bfrom\s*|\bimport\s*\(?\s*)["'](\.[^"']+)["']/g
+// …a page's module scripts and stylesheets, and a stylesheet's url()s
+const SCRIPT_RE = /<script[^>]+type="module"[^>]+src="(\.[^"]+)"/g
+const STYLE_RE = /<link[^>]+rel="stylesheet"[^>]+href="(\.[^"]+)"/g
+const URL_RE = /url\(\s*["']?(\.[^"')]+)["']?\s*\)/g
 
-function closure(entry) {
+// what a file pulls in, by kind: a page its scripts, inline imports, styles
+// and url()s; a module its imports; a stylesheet its url()s
+function refsOf(rel, src) {
+  const ext = extname(rel)
+  const res = ext === ".html" ? [SCRIPT_RE, IMPORT_RE, STYLE_RE, URL_RE] : ext === ".css" ? [URL_RE] : ext === ".js" ? [IMPORT_RE] : []
+  return res.flatMap(re => [...src.matchAll(re)].map(m => m[1]))
+}
+
+function closure(entries) {
   const seen = new Set()
-  const queue = [entry]
+  const queue = [...entries]
   while (queue.length) {
     const rel = queue.shift()
     if (seen.has(rel)) continue
+    if (!existsSync(join(ROOT, rel))) throw new Error(`missing file: ${rel}`)
     seen.add(rel)
+    if (![".html", ".css", ".js"].includes(extname(rel))) continue // a font or the like: nothing inside to follow
     const src = readFileSync(join(ROOT, rel), "utf8")
-    for (const [, spec] of src.matchAll(IMPORT_RE)) {
+    for (const spec of refsOf(rel, src)) {
       const dep = relative(ROOT, resolve(dirname(join(ROOT, rel)), spec))
-      if (!existsSync(join(ROOT, dep))) throw new Error(`${rel} imports a missing file: ${spec}`)
+      if (!existsSync(join(ROOT, dep))) throw new Error(`${rel} refers to a missing file: ${spec}`)
       queue.push(dep)
     }
   }
   return [...seen]
 }
 
-// the entry module, straight from the page — so renaming main.js can't rot this
-const html = readFileSync(join(ROOT, ENTRY_HTML), "utf8")
-const entry = html.match(/<script[^>]+type="module"[^>]+src="\.\/([^"]+)"/)?.[1]
-if (!entry) throw new Error(`no <script type="module" src="./…"> in ${ENTRY_HTML}`)
-
-const files = [...ROOT_FILES, ...closure(entry)]
+const files = [...new Set([...ROOT_FILES, ...closure(PAGES)])]
 
 // rebuild from scratch: a stale file left behind would ship in the upload
 if (existsSync(OUT)) rmSync(OUT, { recursive: true })
