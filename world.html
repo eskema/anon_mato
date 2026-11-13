@@ -4,67 +4,76 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>anon & mato — world dev view</title>
+  <!-- the game's chrome: its face, its paper, its boxes -->
+  <link rel="stylesheet" href="./lib/chrome.css" />
   <style>
-    :root {
-      --surface: #f2f1ee;
-      --text: #1b1b1b;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --surface: #111;
-        --text: #eee;
-      }
-    }
     html,
     body {
       margin: 0;
       height: 100%;
-      background: var(--surface);
-      color: var(--text);
-      font: 600 16px system-ui, sans-serif;
       overflow: hidden;
     }
+    /* the panels: plain paper standing off the corners as the game's chrome
+       does, only the controls boxed */
     #ui {
       position: fixed;
-      top: 10px;
-      left: 10px;
+      top: 6px;
+      left: 6px;
       z-index: 2;
       display: grid;
-      gap: 8px;
-      background: color-mix(in srgb, var(--surface) 84%, transparent);
-      padding: 10px 12px;
-      border-radius: 8px;
+      gap: 6px;
+      justify-items: start;
+      padding: 6px;
+      background: var(--surface);
     }
-    #ui label {
-      display: flex;
-      gap: 8px;
+    #ui .row {
+      display: grid;
+      grid-auto-flow: column;
+      gap: 12px;
       align-items: center;
     }
+    #ui label {
+      display: grid;
+      grid-auto-flow: column;
+      gap: 6px;
+      align-items: center;
+    }
+    #ui input[type="number"] {
+      width: 4.5em;
+    }
+    #hint {
+      font-weight: 400;
+      opacity: 0.8;
+      max-width: 340px;
+    }
     #key {
-      font: 12px ui-monospace, monospace;
+      font-weight: 400;
+      color: var(--dim);
       max-width: 340px;
       word-break: break-all;
-      opacity: 0.65;
-      font-weight: 400;
     }
     #legend {
       position: fixed;
-      bottom: 10px;
-      left: 10px;
+      bottom: 6px;
+      left: 6px;
       z-index: 2;
       display: flex;
-      gap: 14px;
       flex-wrap: wrap;
-      font-size: 13px;
-      background: color-mix(in srgb, var(--surface) 84%, transparent);
-      padding: 8px 12px;
-      border-radius: 8px;
+      gap: 6px 14px;
+      padding: 6px;
+      background: var(--surface);
+    }
+    #legend > span:first-child {
+      color: var(--dim);
     }
     #legend label {
       display: inline-flex;
       align-items: center;
       cursor: pointer;
       user-select: none;
+    }
+    #legend label.off {
+      color: var(--faint);
     }
     canvas {
       display: block;
@@ -73,20 +82,16 @@
       cursor: grab;
       touch-action: none;
     }
-    button,
-    input {
-      font: inherit;
-    }
   </style>
 </head>
-<body>
+<body class="chrome">
   <div id="ui">
-    <div style="display: flex; gap: 10px; align-items: center">
+    <div class="row">
       <button id="rnd">new world</button>
-      <label>angle <input id="angle" type="number" min="0" max="359" step="1" style="width: 4.5em" /></label>
+      <label>angle <input id="angle" type="number" min="0" max="359" step="1" /></label>
     </div>
-    <label>reach budget <input id="budget" type="number" min="1" step="1" style="width: 4.5em" /> min</label>
-    <div id="hint" style="font-weight: 400; font-size: 13px; opacity: 0.8; max-width: 340px">
+    <label>reach budget <input id="budget" type="number" min="1" step="1" /> min</label>
+    <div id="hint">
       click a tile to stand there and shade its rough reach — terrain step costs only (no walls, river rules or leaps)
     </div>
     <div id="key"></div>

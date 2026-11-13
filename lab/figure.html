@@ -1,0 +1,118 @@
+<!doctype html>
+<!-- FIGURE LAB — the articulated figure (lib/figure.js) on a stage that
+     fills the window. Every part of the figure has a dot; click one and a
+     small card opens beside the figure with that part's sliders only — a
+     ball joint's x, y and twist, a hinge's bend, a bone's length, and at the
+     wrist the hand's opening. A picked joint shows its reach: the sphere its
+     node travels, dashed, and on it the path of each of its turns; pull the
+     node over the sphere (shift for its far half). A bone's dot stretches
+     it. The GALLERY along the foot keeps poses by name: click one to load
+     it, "+ save" keeps the stage's. One strip in the corner holds the rest,
+     by MODE: BUILD (mirror, under, the dots, the paint, the line) or ANIMATE
+     (play the loop between the gallery's A and B on the quart ease), and
+     the JSON in and out. The stage is a camera like the map's: the wheel
+     zooms about the pointer, dragging empty paper pans; "side view" turns
+     it to the figure's left side, to see depth. Tune → copy → paste
+     in chat; the pose is ported into the game as data. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>figure lab</title>
+  <link rel="stylesheet" href="./bench.css" />
+  <style>
+    body.figlab { position: relative; }
+    #stage { cursor: default; touch-action: none; }
+    #stage.near { cursor: grab; }
+    #stage.grab { cursor: grabbing; }
+    /* the strip: one line in the corner, a cell per group */
+    #strip {
+      position: absolute; top: 0; left: 0;
+      display: grid; grid-auto-flow: column; align-items: stretch;
+      background: var(--surface);
+      border-right: 1px solid var(--hair); border-bottom: 1px solid var(--hair);
+    }
+    #modes { display: grid; grid-auto-flow: column; }
+    #modes .atab.active { font-weight: 600; }
+    #strip .grp { display: grid; grid-auto-flow: column; align-items: center; gap: 8px; padding: 3px 10px; }
+    #strip .grp[hidden] { display: none; }
+    #strip .grp + .grp { border-left: 1px solid var(--hair); }
+    #strip label { color: var(--dim); }
+    #strip .k { font-weight: 600; }
+    #strip .sep { width: 1px; height: 17px; background: var(--hair); }
+    #weight { width: 70px; }
+    .v { text-align: right; font-variant-numeric: tabular-nums; min-width: 4ch; }
+    #status { color: var(--dim); min-width: 7ch; }
+    /* the gallery: a tile per kept pose along the stage's foot */
+    #gallery {
+      position: absolute; left: 0; bottom: 0;
+      display: grid;
+      background: var(--surface);
+      border-top: 1px solid var(--hair); border-right: 1px solid var(--hair);
+    }
+    .tile {
+      position: relative; box-sizing: border-box;
+      display: grid; justify-items: center; align-content: start; gap: 2px;
+      padding: 4px 6px; cursor: pointer;
+      border: 0; border-right: 1px solid var(--hair); border-bottom: 1px solid var(--hair);
+      background: var(--surface);
+    }
+    .tile canvas { width: 64px; height: 64px; display: block; }
+    .tile .name { max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tile:hover .name { font-weight: 600; }
+    .tile .del { position: absolute; top: 2px; right: 2px; visibility: hidden; border-width: 1px; padding: 0 4px 1px; line-height: 13px; }
+    .tile:hover .del { visibility: visible; }
+    .tile .abs { display: grid; grid-auto-flow: column; gap: 4px; }
+    .tile .abs button { border-width: 1px; padding: 0 6px 1px; line-height: 13px; }
+    .tile .abs button.on { background: var(--text); color: var(--surface); }
+    .tile.add { place-content: center; color: var(--dim); font: inherit; }
+    .tile.add:hover { background: var(--text); color: var(--surface); }
+    /* the card: the picked part's sliders, beside the figure */
+    #card {
+      position: absolute; width: 230px; box-sizing: border-box;
+      display: grid; gap: 2px; padding: 4px 10px 6px;
+      background: var(--surface); border: 1px solid var(--hair);
+    }
+    #card[hidden] { display: none; }
+    #card .head { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px; padding-bottom: 2px; }
+    #card .t { font-weight: 600; color: var(--accent); }
+    #card .take { border-width: 1px; padding: 0 5px 1px; line-height: 15px; color: var(--dim); }
+    #card .take:hover { color: var(--surface); }
+    #card .row { display: grid; grid-template-columns: 6ch 1fr 4ch; align-items: center; gap: 6px; }
+    #card .row .n { color: var(--dim); }
+    #card .row input[type="range"] { min-width: 0; width: 100%; }
+  </style>
+</head>
+<body class="figlab">
+  <canvas id="stage"></canvas>
+  <div id="strip">
+    <nav id="modes">
+      <button class="atab" data-mode="build">build</button>
+      <button class="atab" data-mode="animate">animate</button>
+    </nav>
+    <span class="grp">
+      <label title="see the figure from its left side"><input type="checkbox" id="side" /> side view</label>
+    </span>
+    <span id="build" class="grp">
+      <label><input type="checkbox" id="mirror" /> mirror</label>
+      <label><input type="checkbox" id="under" /> under</label>
+      <label><input type="checkbox" id="joints" /> dots</label>
+      <label><input type="checkbox" id="paint" /> paint</label>
+      <label>line <input type="range" id="weight" min="0.04" max="0.2" step="0.01" /></label>
+      <span id="weightv" class="v"></span>
+    </span>
+    <span id="animate" class="grp" hidden>
+      <button id="play" class="primary">play</button>
+      <label>ms <input type="number" id="ms" min="100" max="5000" step="50" /></label>
+    </span>
+    <span class="grp">
+      <button id="copy" class="primary">copy JSON</button>
+      <button id="paste">paste JSON</button>
+      <span id="status"></span>
+    </span>
+  </div>
+  <div id="gallery"></div>
+  <div id="card" hidden></div>
+  <script type="module" src="./figure.js"></script>
+</body>
+</html>

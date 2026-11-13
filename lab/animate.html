@@ -1,6 +1,5 @@
 <!doctype html>
-<!-- ANIM LAB — the shell. Rides in the playground's animate tab, and
-     stands alone at /lab/animate.html.
+<!-- ANIM LAB — the shell. Stands alone at /lab/animate.html.
 
      One bar picks the component (menu open · menu close · whatever joins
      the registry in animations.js); the host below carries whatever the
@@ -23,8 +22,9 @@
   <script type="module">
     import { ANIMATIONS } from "./animations.js"
     import { mountBench } from "./bench.js"
+    import { KEYS } from "../lib/keys.js"
 
-    const KEY = "anon_mato.lab.animate.current"
+    const KEY = KEYS.labAnimate
     let savedId = null
     try { savedId = localStorage.getItem(KEY) } catch {}
     const host = document.getElementById("lab-host")

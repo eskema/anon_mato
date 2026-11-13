@@ -122,13 +122,13 @@ FAMS.forEach(f => {
 })
 const sizeEl = document.getElementById("size")
 const setSize = v => document.documentElement.style.setProperty("--size", v + "px")
-sizeEl.oninput = () => { setSize(sizeEl.value); try { localStorage.setItem("amFreeSize", sizeEl.value) } catch {} }
-try { const s = localStorage.getItem("amFreeSize"); if (s) { sizeEl.value = s; setSize(s) } } catch {}
+sizeEl.oninput = () => { setSize(sizeEl.value); try { localStorage.setItem("hex:lab:free-icons:size", sizeEl.value) } catch {} }
+try { const s = localStorage.getItem("hex:lab:free-icons:size"); if (s) { sizeEl.value = s; setSize(s) } } catch {}
 const cmp = document.getElementById("cmp")
 cmp.onclick = () => cmp.setAttribute("aria-pressed", document.body.classList.toggle("cmp"))
 const isDark = () => { const t = document.documentElement.dataset.theme; return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches }
-document.getElementById("theme").onclick = () => { const t = isDark() ? "light" : "dark"; document.documentElement.dataset.theme = t; try { localStorage.setItem("amFreeTheme", t) } catch {} }
-try { const t = localStorage.getItem("amFreeTheme"); if (t) document.documentElement.dataset.theme = t } catch {}
+document.getElementById("theme").onclick = () => { const t = isDark() ? "light" : "dark"; document.documentElement.dataset.theme = t; try { localStorage.setItem("hex:lab:free-icons:theme", t) } catch {} }
+try { const t = localStorage.getItem("hex:lab:free-icons:theme"); if (t) document.documentElement.dataset.theme = t } catch {}
 const dlg = document.getElementById("dlg")
 let cur = 0
 function inspect(i) {

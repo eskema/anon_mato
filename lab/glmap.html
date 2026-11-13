@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GPU map test</title>
+  <!-- the game's chrome: its face, its paper, its boxes -->
+  <link rel="stylesheet" href="../lib/chrome.css" />
+  <style>
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      background: #111;
+      overflow: hidden;
+    }
+    #gl {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+      touch-action: none;
+    }
+    /* the panel: plain paper standing off the corner as the game's chrome
+       does, only the buttons boxed */
+    #ui {
+      position: fixed;
+      top: 6px;
+      left: 6px;
+      z-index: 2;
+      display: grid;
+      gap: 6px;
+      justify-items: start;
+      padding: 6px;
+      background: var(--surface);
+    }
+    #stats {
+      display: grid;
+      grid-template-columns: auto auto;
+      gap: 2px 12px;
+    }
+    #stats span:nth-child(odd) {
+      color: var(--dim);
+    }
+    /* each kind's motif: its name held back, its picker boxed */
+    #motifs {
+      display: grid;
+      grid-template-columns: auto auto;
+      gap: 4px 12px;
+      align-items: center;
+    }
+    #motifs > span {
+      color: var(--dim);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <div id="ui" class="chrome">
+    <div class="cells">
+      <button id="found" aria-pressed="true">found tiles</button>
+      <button id="whole" aria-pressed="false">whole world</button>
+    </div>
+    <div class="cells">
+      <button id="sweep" aria-pressed="false">sweep zoom</button>
+      <button id="fit">fit</button>
+      <button id="tex" aria-pressed="true">textures</button>
+    </div>
+    <div id="motifs"></div>
+    <div id="stats"></div>
+  </div>
+  <script type="module" src="./glmap.js"></script>
+</body>
+</html>

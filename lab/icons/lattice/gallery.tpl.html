@@ -181,14 +181,14 @@ FAMS.forEach(f => {
 // controls
 const sizeEl = document.getElementById("size")
 const setSize = v => document.documentElement.style.setProperty("--size", v + "px")
-sizeEl.oninput = () => { setSize(sizeEl.value); try { localStorage.setItem("amIconsSize", sizeEl.value) } catch {} }
-try { const s = localStorage.getItem("amIconsSize"); if (s) { sizeEl.value = s; setSize(s) } } catch {}
+sizeEl.oninput = () => { setSize(sizeEl.value); try { localStorage.setItem("hex:lab:icons:size", sizeEl.value) } catch {} }
+try { const s = localStorage.getItem("hex:lab:icons:size"); if (s) { sizeEl.value = s; setSize(s) } } catch {}
 const latBtn = document.getElementById("lat")
 latBtn.onclick = () => { const on = document.body.classList.toggle("lat"); latBtn.setAttribute("aria-pressed", on) }
 const themeBtn = document.getElementById("theme")
 const curDark = () => { const t = document.documentElement.dataset.theme; return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches }
-themeBtn.onclick = () => { const next = curDark() ? "light" : "dark"; document.documentElement.dataset.theme = next; try { localStorage.setItem("amIconsTheme", next) } catch {} }
-try { const t = localStorage.getItem("amIconsTheme"); if (t) document.documentElement.dataset.theme = t } catch {}
+themeBtn.onclick = () => { const next = curDark() ? "light" : "dark"; document.documentElement.dataset.theme = next; try { localStorage.setItem("hex:lab:icons:theme", next) } catch {} }
+try { const t = localStorage.getItem("hex:lab:icons:theme"); if (t) document.documentElement.dataset.theme = t } catch {}
 document.getElementById("dl").onclick = () => {
   const out = {}
   FAMS.filter(f => f.name !== "hand").forEach(f => f.items.forEach(it => { out[it.key] = { n: 8, fill: it.fill, lines: [] } }))

@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url"
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const OUT = join(ROOT, "napp")
 // the game first, then the pages the playground frames (lib/cube.js PAGES)
-const PAGES = ["index.html", "guide.html", "styles.html", "world.html", "lab/animate.html"]
+const PAGES = ["index.html", "guide.html", "clock.html", "world.html"]
 // what the launcher itself reads, beside the pages
 const ROOT_FILES = ["metadata.json"]
 

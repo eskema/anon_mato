@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Land types: lines and layers</title>
+<style>:root{--text-primary:#141414;--text-secondary:#5f5e5a;--text-muted:#888780;--surface-2:#fbfaf7;--surface-1:#f4f1ea;--border:rgba(20,20,20,.14);--border-strong:rgba(20,20,20,.25);--font-sans:ui-sans-serif,system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--text-primary:#efebe2;--text-secondary:#b4b2a9;--text-muted:#888780;--surface-2:#1c1c1b;--surface-1:#141413;--border:rgba(239,235,226,.14);--border-strong:rgba(239,235,226,.25)}}
+html,body{margin:0;background:var(--surface-1);color:var(--text-primary);font:16px/1.5 var(--font-sans)}body{padding:0 16px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+main{display:grid;gap:32px;max-width:760px;margin:0 auto;padding:40px 0 80px}h1{font-weight:500;font-size:24px;margin:0}h2{font-weight:500;font-size:16px;margin:0 0 8px;color:var(--text-secondary)}
+iframe{width:100%;border:0;height:900px;display:block;background:transparent}p{margin:0;color:var(--text-secondary)}</style></head>
+<body><main><h1>Land types: lines and layers</h1><p>The iterations from the chat on 2026-10-01, in order, each one as it was shown.</p>
+<section><h2>1 · three lines per tile, first pass (with alternates)</h2><iframe id='land_types_three_lines' srcdoc="&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&#x27;utf-8&#x27;&gt;&lt;style&gt;:root{--text-primary:#141414;--text-secondary:#5f5e5a;--text-muted:#888780;--surface-2:#fbfaf7;--surface-1:#f4f1ea;--border:rgba(20,20,20,.14);--border-strong:rgba(20,20,20,.25);--font-sans:ui-sans-serif,system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--text-primary:#efebe2;--text-secondary:#b4b2a9;--text-muted:#888780;--surface-2:#1c1c1b;--surface-1:#141413;--border:rgba(239,235,226,.14);--border-strong:rgba(239,235,226,.25)}}
+html,body{margin:0;background:var(--surface-1);color:var(--text-primary);font:16px/1.5 var(--font-sans)}body{padding:0 16px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h2 class=&quot;sr-only&quot;&gt;Nine land types drawn with three stacked lines each, plus alternates for mountain, peak and cliff&lt;/h2&gt;
+&lt;style&gt;
+.lg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding:1rem 0}
+.lc{display:grid;justify-items:center;gap:6px;padding:14px 8px 12px;border:0.5px solid var(--border);border-radius:12px;background:var(--surface-2)}
+.lc .sm{display:grid;grid-auto-flow:column;gap:12px;align-items:center}
+.lc .n{font-size:15px;font-weight:500}
+.lc .r{font-size:12px;color:var(--text-secondary);text-align:center;line-height:1.4}
+.lh{font-size:13px;color:var(--text-secondary);margin:.5rem 0 0}
+svg.ic path{fill:none;stroke:var(--text-primary);stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
+&lt;/style&gt;
+&lt;div class=&quot;lg&quot; id=&quot;main&quot;&gt;&lt;/div&gt;
+&lt;p class=&quot;lh&quot;&gt;alternates for the ones I invented&lt;/p&gt;
+&lt;div class=&quot;lg&quot; id=&quot;alt&quot;&gt;&lt;/div&gt;
+&lt;script&gt;
+const X0=8,X1=40,Y=[14,24,34]
+const L={
+straight:y=&gt;`M${X0} ${y}L${X1} ${y}`,
+wavy:y=&gt;`M${X0} ${y}Q${X0+4} ${y-3} ${X0+8} ${y}T${X0+16} ${y}T${X0+24} ${y}T${X1} ${y}`,
+sharp:y=&gt;{let d=`M${X0} ${y}`;for(let x=X0;x&lt;X1;x+=8)d+=`L${x+4} ${y-3.5}L${x+8} ${y}`;return d},
+ridge:y=&gt;`M${X0} ${y}L${X0+8} ${y-8}L${X0+16} ${y}L${X0+24} ${y-8}L${X1} ${y}`,
+spike:y=&gt;`M${X0} ${y}L${X0+11} ${y}L${X0+16} ${y-10}L${X0+21} ${y}L${X1} ${y}`,
+step:y=&gt;`M${X0} ${y+3}L${X0+14} ${y+3}L${X0+14} ${y-5}L${X1} ${y-5}`,
+beach:y=&gt;`M${X0} ${y}L${X0+16} ${y}Q${X0+20} ${y-3} ${X0+24} ${y}T${X1} ${y}`
+}
+const name={straight:&quot;straight&quot;,wavy:&quot;wavy&quot;,sharp:&quot;sharp&quot;,ridge:&quot;ridge&quot;,spike:&quot;spike&quot;,step:&quot;step&quot;,beach:&quot;half straight, half wavy&quot;}
+const MAIN=[
+[&quot;plain&quot;,[&quot;straight&quot;,&quot;straight&quot;,&quot;straight&quot;]],
+[&quot;water&quot;,[&quot;wavy&quot;,&quot;wavy&quot;,&quot;wavy&quot;]],
+[&quot;river&quot;,[&quot;straight&quot;,&quot;wavy&quot;,&quot;straight&quot;]],
+[&quot;beach&quot;,[&quot;beach&quot;,&quot;beach&quot;,&quot;beach&quot;]],
+[&quot;marsh&quot;,[&quot;straight&quot;,&quot;straight&quot;,&quot;wavy&quot;]],
+[&quot;forest&quot;,[&quot;sharp&quot;,&quot;straight&quot;,&quot;straight&quot;]],
+[&quot;mountain&quot;,[&quot;ridge&quot;,&quot;straight&quot;,&quot;straight&quot;]],
+[&quot;cliff&quot;,[&quot;step&quot;,&quot;straight&quot;,&quot;straight&quot;]],
+[&quot;peak&quot;,[&quot;spike&quot;,&quot;straight&quot;,&quot;straight&quot;]]
+]
+const ALT=[
+[&quot;mountain b&quot;,[&quot;ridge&quot;,&quot;ridge&quot;,&quot;straight&quot;]],
+[&quot;peak b&quot;,[&quot;spike&quot;,&quot;ridge&quot;,&quot;straight&quot;]],
+[&quot;cliff b&quot;,[&quot;step&quot;,&quot;step&quot;,&quot;step&quot;]],
+[&quot;marsh b&quot;,[&quot;straight&quot;,&quot;wavy&quot;,&quot;wavy&quot;]]
+]
+const svg=(rows,s)=&gt;`&lt;svg class=&quot;ic&quot; viewBox=&quot;0 0 48 48&quot; width=&quot;${s}&quot; height=&quot;${s}&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;${rows.map((t,i)=&gt;L[t](Y[i])).join(&quot;&quot;)}&quot;/&gt;&lt;/svg&gt;`
+const recipe=rows=&gt;{const u=[...new Set(rows)];return u.length===1?`3 ${name[u[0]]}`:rows.map(t=&gt;name[t]).join(&quot; · &quot;)}
+const fill=(id,list)=&gt;{document.getElementById(id).innerHTML=list.map(([n,rows])=&gt;`&lt;div class=&quot;lc&quot;&gt;${svg(rows,96)}&lt;div class=&quot;sm&quot;&gt;${svg(rows,32)}${svg(rows,24)}${svg(rows,16)}&lt;/div&gt;&lt;div class=&quot;n&quot;&gt;${n}&lt;/div&gt;&lt;div class=&quot;r&quot;&gt;${recipe(rows)}&lt;/div&gt;&lt;/div&gt;`).join(&quot;&quot;)}
+fill(&quot;main&quot;,MAIN);fill(&quot;alt&quot;,ALT)
+&lt;/script&gt;
+&lt;script&gt;new ResizeObserver(()=&gt;parent.postMessage({id:&#x27;land_types_three_lines&#x27;,h:document.documentElement.scrollHeight},&#x27;*&#x27;)).observe(document.body)&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;" loading='lazy'></iframe></section>
+<section><h2>2 · beach 1 straight + 2 wavy, forest 2 sharp, mountain 2 ridges, cliff ridge + 2 wavy</h2><iframe id='land_types_three_lines_v2' srcdoc="&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&#x27;utf-8&#x27;&gt;&lt;style&gt;:root{--text-primary:#141414;--text-secondary:#5f5e5a;--text-muted:#888780;--surface-2:#fbfaf7;--surface-1:#f4f1ea;--border:rgba(20,20,20,.14);--border-strong:rgba(20,20,20,.25);--font-sans:ui-sans-serif,system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--text-primary:#efebe2;--text-secondary:#b4b2a9;--text-muted:#888780;--surface-2:#1c1c1b;--surface-1:#141413;--border:rgba(239,235,226,.14);--border-strong:rgba(239,235,226,.25)}}
+html,body{margin:0;background:var(--surface-1);color:var(--text-primary);font:16px/1.5 var(--font-sans)}body{padding:0 16px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h2 class=&quot;sr-only&quot;&gt;Nine land types drawn with three stacked lines each, second iteration&lt;/h2&gt;
+&lt;style&gt;
+.lg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding:1rem 0}
+.lc{display:grid;justify-items:center;gap:6px;padding:14px 8px 12px;border:0.5px solid var(--border);border-radius:12px;background:var(--surface-2)}
+.lc .sm{display:grid;grid-auto-flow:column;gap:12px;align-items:center}
+.lc .n{font-size:15px;font-weight:500}
+.lc .r{font-size:12px;color:var(--text-secondary);text-align:center;line-height:1.4}
+svg.ic path{fill:none;stroke:var(--text-primary);stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
+&lt;/style&gt;
+&lt;div class=&quot;lg&quot; id=&quot;main&quot;&gt;&lt;/div&gt;
+&lt;script&gt;
+const X0=8,X1=40,Y=[14,24,34]
+const L={
+straight:y=&gt;`M${X0} ${y}L${X1} ${y}`,
+wavy:y=&gt;`M${X0} ${y}Q${X0+4} ${y-3} ${X0+8} ${y}T${X0+16} ${y}T${X0+24} ${y}T${X1} ${y}`,
+sharp:y=&gt;{let d=`M${X0} ${y}`;for(let x=X0;x&lt;X1;x+=8)d+=`L${x+4} ${y-3.5}L${x+8} ${y}`;return d},
+ridge:y=&gt;`M${X0} ${y}L${X0+8} ${y-8}L${X0+16} ${y}L${X0+24} ${y-8}L${X1} ${y}`,
+caret:y=&gt;`M${X0+10} ${y}L${X0+16} ${y-10}L${X0+22} ${y}`
+}
+const name={straight:&quot;straight&quot;,wavy:&quot;wavy&quot;,sharp:&quot;sharp&quot;,ridge:&quot;ridge&quot;,caret:&quot;summit&quot;}
+const MAIN=[
+[&quot;plain&quot;,[&quot;straight&quot;,&quot;straight&quot;,&quot;straight&quot;]],
+[&quot;water&quot;,[&quot;wavy&quot;,&quot;wavy&quot;,&quot;wavy&quot;]],
+[&quot;river&quot;,[&quot;straight&quot;,&quot;wavy&quot;,&quot;straight&quot;]],
+[&quot;beach&quot;,[&quot;straight&quot;,&quot;wavy&quot;,&quot;wavy&quot;]],
+[&quot;marsh&quot;,[&quot;straight&quot;,&quot;straight&quot;,&quot;wavy&quot;]],
+[&quot;forest&quot;,[&quot;sharp&quot;,&quot;sharp&quot;,&quot;straight&quot;]],
+[&quot;mountain&quot;,[&quot;ridge&quot;,&quot;ridge&quot;,&quot;straight&quot;]],
+[&quot;cliff&quot;,[&quot;ridge&quot;,&quot;wavy&quot;,&quot;wavy&quot;]],
+[&quot;peak&quot;,[&quot;caret&quot;,&quot;ridge&quot;,&quot;straight&quot;]]
+]
+const svg=(rows,s)=&gt;`&lt;svg class=&quot;ic&quot; viewBox=&quot;0 0 48 48&quot; width=&quot;${s}&quot; height=&quot;${s}&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;${rows.map((t,i)=&gt;L[t](Y[i])).join(&quot;&quot;)}&quot;/&gt;&lt;/svg&gt;`
+const recipe=rows=&gt;{const u=[...new Set(rows)];return u.length===1?`3 ${name[u[0]]}`:rows.map(t=&gt;name[t]).join(&quot; · &quot;)}
+document.getElementById(&quot;main&quot;).innerHTML=MAIN.map(([n,rows])=&gt;`&lt;div class=&quot;lc&quot;&gt;${svg(rows,96)}&lt;div class=&quot;sm&quot;&gt;${svg(rows,32)}${svg(rows,24)}${svg(rows,16)}&lt;/div&gt;&lt;div class=&quot;n&quot;&gt;${n}&lt;/div&gt;&lt;div class=&quot;r&quot;&gt;${recipe(rows)}&lt;/div&gt;&lt;/div&gt;`).join(&quot;&quot;)
+&lt;/script&gt;
+&lt;script&gt;new ResizeObserver(()=&gt;parent.postMessage({id:&#x27;land_types_three_lines_v2&#x27;,h:document.documentElement.scrollHeight},&#x27;*&#x27;)).observe(document.body)&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;" loading='lazy'></iframe></section>
+<section><h2>3 · peak = one centred ridge tooth</h2><iframe id='land_types_three_lines_v3' srcdoc="&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&#x27;utf-8&#x27;&gt;&lt;style&gt;:root{--text-primary:#141414;--text-secondary:#5f5e5a;--text-muted:#888780;--surface-2:#fbfaf7;--surface-1:#f4f1ea;--border:rgba(20,20,20,.14);--border-strong:rgba(20,20,20,.25);--font-sans:ui-sans-serif,system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--text-primary:#efebe2;--text-secondary:#b4b2a9;--text-muted:#888780;--surface-2:#1c1c1b;--surface-1:#141413;--border:rgba(239,235,226,.14);--border-strong:rgba(239,235,226,.25)}}
+html,body{margin:0;background:var(--surface-1);color:var(--text-primary);font:16px/1.5 var(--font-sans)}body{padding:0 16px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h2 class=&quot;sr-only&quot;&gt;Nine land types drawn with three stacked lines each, third iteration with a single centred ridge tooth for peak&lt;/h2&gt;
+&lt;style&gt;
+.lg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding:1rem 0}
+.lc{display:grid;justify-items:center;gap:6px;padding:14px 8px 12px;border:0.5px solid var(--border);border-radius:12px;background:var(--surface-2)}
+.lc .sm{display:grid;grid-auto-flow:column;gap:12px;align-items:center}
+.lc .n{font-size:15px;font-weight:500}
+.lc .r{font-size:12px;color:var(--text-secondary);text-align:center;line-height:1.4}
+svg.ic path{fill:none;stroke:var(--text-primary);stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
+&lt;/style&gt;
+&lt;div class=&quot;lg&quot; id=&quot;main&quot;&gt;&lt;/div&gt;
+&lt;script&gt;
+const X0=8,X1=40,Y=[14,24,34]
+const L={
+straight:y=&gt;`M${X0} ${y}L${X1} ${y}`,
+wavy:y=&gt;`M${X0} ${y}Q${X0+4} ${y-3} ${X0+8} ${y}T${X0+16} ${y}T${X0+24} ${y}T${X1} ${y}`,
+sharp:y=&gt;{let d=`M${X0} ${y}`;for(let x=X0;x&lt;X1;x+=8)d+=`L${x+4} ${y-3.5}L${x+8} ${y}`;return d},
+ridge:y=&gt;`M${X0} ${y}L${X0+8} ${y-8}L${X0+16} ${y}L${X0+24} ${y-8}L${X1} ${y}`,
+summit:y=&gt;`M${X0+8} ${y}L${X0+16} ${y-8}L${X0+24} ${y}`
+}
+const name={straight:&quot;straight&quot;,wavy:&quot;wavy&quot;,sharp:&quot;sharp&quot;,ridge:&quot;ridge&quot;,summit:&quot;single ridge&quot;}
+const MAIN=[
+[&quot;plain&quot;,[&quot;straight&quot;,&quot;straight&quot;,&quot;straight&quot;]],
+[&quot;water&quot;,[&quot;wavy&quot;,&quot;wavy&quot;,&quot;wavy&quot;]],
+[&quot;river&quot;,[&quot;straight&quot;,&quot;wavy&quot;,&quot;straight&quot;]],
+[&quot;beach&quot;,[&quot;straight&quot;,&quot;wavy&quot;,&quot;wavy&quot;]],
+[&quot;marsh&quot;,[&quot;straight&quot;,&quot;straight&quot;,&quot;wavy&quot;]],
+[&quot;forest&quot;,[&quot;sharp&quot;,&quot;sharp&quot;,&quot;straight&quot;]],
+[&quot;mountain&quot;,[&quot;ridge&quot;,&quot;ridge&quot;,&quot;straight&quot;]],
+[&quot;cliff&quot;,[&quot;ridge&quot;,&quot;wavy&quot;,&quot;wavy&quot;]],
+[&quot;peak&quot;,[&quot;summit&quot;,&quot;ridge&quot;,&quot;straight&quot;]]
+]
+const svg=(rows,s)=&gt;`&lt;svg class=&quot;ic&quot; viewBox=&quot;0 0 48 48&quot; width=&quot;${s}&quot; height=&quot;${s}&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;${rows.map((t,i)=&gt;L[t](Y[i])).join(&quot;&quot;)}&quot;/&gt;&lt;/svg&gt;`
+const recipe=rows=&gt;{const u=[...new Set(rows)];return u.length===1?`3 ${name[u[0]]}`:rows.map(t=&gt;name[t]).join(&quot; · &quot;)}
+document.getElementById(&quot;main&quot;).innerHTML=MAIN.map(([n,rows])=&gt;`&lt;div class=&quot;lc&quot;&gt;${svg(rows,96)}&lt;div class=&quot;sm&quot;&gt;${svg(rows,32)}${svg(rows,24)}${svg(rows,16)}&lt;/div&gt;&lt;div class=&quot;n&quot;&gt;${n}&lt;/div&gt;&lt;div class=&quot;r&quot;&gt;${recipe(rows)}&lt;/div&gt;&lt;/div&gt;`).join(&quot;&quot;)
+&lt;/script&gt;
+&lt;script&gt;new ResizeObserver(()=&gt;parent.postMessage({id:&#x27;land_types_three_lines_v3&#x27;,h:document.documentElement.scrollHeight},&#x27;*&#x27;)).observe(document.body)&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;" loading='lazy'></iframe></section>
+<section><h2>4 · ridges re-spaced, no overlaps</h2><iframe id='land_types_three_lines_v4' srcdoc="&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&#x27;utf-8&#x27;&gt;&lt;style&gt;:root{--text-primary:#141414;--text-secondary:#5f5e5a;--text-muted:#888780;--surface-2:#fbfaf7;--surface-1:#f4f1ea;--border:rgba(20,20,20,.14);--border-strong:rgba(20,20,20,.25);--font-sans:ui-sans-serif,system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--text-primary:#efebe2;--text-secondary:#b4b2a9;--text-muted:#888780;--surface-2:#1c1c1b;--surface-1:#141413;--border:rgba(239,235,226,.14);--border-strong:rgba(239,235,226,.25)}}
+html,body{margin:0;background:var(--surface-1);color:var(--text-primary);font:16px/1.5 var(--font-sans)}body{padding:0 16px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h2 class=&quot;sr-only&quot;&gt;Nine land types drawn with three stacked lines each, fourth iteration with ridges re-spaced so no lines overlap&lt;/h2&gt;
+&lt;style&gt;
+.lg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding:1rem 0}
+.lc{display:grid;justify-items:center;gap:6px;padding:14px 8px 12px;border:0.5px solid var(--border);border-radius:12px;background:var(--surface-2)}
+.lc .sm{display:grid;grid-auto-flow:column;gap:12px;align-items:center}
+.lc .n{font-size:15px;font-weight:500}
+.lc .r{font-size:12px;color:var(--text-secondary);text-align:center;line-height:1.4}
+svg.ic path{fill:none;stroke:var(--text-primary);stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
+&lt;/style&gt;
+&lt;div class=&quot;lg&quot; id=&quot;main&quot;&gt;&lt;/div&gt;
+&lt;script&gt;
+const X0=8,X1=40,Y=[13,25,37],A=5
+const L={
+straight:y=&gt;`M${X0} ${y}L${X1} ${y}`,
+wavy:y=&gt;`M${X0} ${y}Q${X0+4} ${y-3} ${X0+8} ${y}T${X0+16} ${y}T${X0+24} ${y}T${X1} ${y}`,
+sharp:y=&gt;{let d=`M${X0} ${y}`;for(let x=X0;x&lt;X1;x+=8)d+=`L${x+4} ${y-3.5}L${x+8} ${y}`;return d},
+ridge:y=&gt;`M${X0} ${y}L${X0+8} ${y-A}L${X0+16} ${y}L${X0+24} ${y-A}L${X1} ${y}`,
+summit:y=&gt;`M${X0+8} ${y}L${X0+16} ${y-A}L${X0+24} ${y}`
+}
+const name={straight:&quot;straight&quot;,wavy:&quot;wavy&quot;,sharp:&quot;sharp&quot;,ridge:&quot;ridge&quot;,summit:&quot;single ridge&quot;}
+const MAIN=[
+[&quot;plain&quot;,[&quot;straight&quot;,&quot;straight&quot;,&quot;straight&quot;]],
+[&quot;water&quot;,[&quot;wavy&quot;,&quot;wavy&quot;,&quot;wavy&quot;]],
+[&quot;river&quot;,[&quot;straight&quot;,&quot;wavy&quot;,&quot;straight&quot;]],
+[&quot;beach&quot;,[&quot;straight&quot;,&quot;wavy&quot;,&quot;wavy&quot;]],
+[&quot;marsh&quot;,[&quot;straight&quot;,&quot;straight&quot;,&quot;wavy&quot;]],
+[&quot;forest&quot;,[&quot;sharp&quot;,&quot;sharp&quot;,&quot;straight&quot;]],
+[&quot;mountain&quot;,[&quot;ridge&quot;,&quot;ridge&quot;,&quot;straight&quot;]],
+[&quot;cliff&quot;,[&quot;ridge&quot;,&quot;wavy&quot;,&quot;wavy&quot;]],
+[&quot;peak&quot;,[&quot;summit&quot;,&quot;ridge&quot;,&quot;straight&quot;]]
+]
+const svg=(rows,s)=&gt;`&lt;svg class=&quot;ic&quot; viewBox=&quot;0 0 48 48&quot; width=&quot;${s}&quot; height=&quot;${s}&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;${rows.map((t,i)=&gt;L[t](Y[i])).join(&quot;&quot;)}&quot;/&gt;&lt;/svg&gt;`
+const recipe=rows=&gt;{const u=[...new Set(rows)];return u.length===1?`3 ${name[u[0]]}`:rows.map(t=&gt;name[t]).join(&quot; · &quot;)}
+document.getElementById(&quot;main&quot;).innerHTML=MAIN.map(([n,rows])=&gt;`&lt;div class=&quot;lc&quot;&gt;${svg(rows,96)}&lt;div class=&quot;sm&quot;&gt;${svg(rows,32)}${svg(rows,24)}${svg(rows,16)}&lt;/div&gt;&lt;div class=&quot;n&quot;&gt;${n}&lt;/div&gt;&lt;div class=&quot;r&quot;&gt;${recipe(rows)}&lt;/div&gt;&lt;/div&gt;`).join(&quot;&quot;)
+&lt;/script&gt;
+&lt;script&gt;new ResizeObserver(()=&gt;parent.postMessage({id:&#x27;land_types_three_lines_v4&#x27;,h:document.documentElement.scrollHeight},&#x27;*&#x27;)).observe(document.body)&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;" loading='lazy'></iframe></section>
+<section><h2>5 · cliff = single ridge + half line + wavy (left and right)</h2><iframe id='land_types_three_lines_v5' srcdoc="&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&#x27;utf-8&#x27;&gt;&lt;style&gt;:root{--text-primary:#141414;--text-secondary:#5f5e5a;--text-muted:#888780;--surface-2:#fbfaf7;--surface-1:#f4f1ea;--border:rgba(20,20,20,.14);--border-strong:rgba(20,20,20,.25);--font-sans:ui-sans-serif,system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--text-primary:#efebe2;--text-secondary:#b4b2a9;--text-muted:#888780;--surface-2:#1c1c1b;--surface-1:#141413;--border:rgba(239,235,226,.14);--border-strong:rgba(239,235,226,.25)}}
+html,body{margin:0;background:var(--surface-1);color:var(--text-primary);font:16px/1.5 var(--font-sans)}body{padding:0 16px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h2 class=&quot;sr-only&quot;&gt;Nine land types drawn with three stacked lines each, fifth iteration with a new cliff, plus a right-aligned cliff variant&lt;/h2&gt;
+&lt;style&gt;
+.lg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding:1rem 0}
+.lc{display:grid;justify-items:center;gap:6px;padding:14px 8px 12px;border:0.5px solid var(--border);border-radius:12px;background:var(--surface-2)}
+.lc .sm{display:grid;grid-auto-flow:column;gap:12px;align-items:center}
+.lc .n{font-size:15px;font-weight:500}
+.lc .r{font-size:12px;color:var(--text-secondary);text-align:center;line-height:1.4}
+svg.ic path{fill:none;stroke:var(--text-primary);stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
+&lt;/style&gt;
+&lt;div class=&quot;lg&quot; id=&quot;main&quot;&gt;&lt;/div&gt;
+&lt;script&gt;
+const X0=8,X1=40,XM=24,Y=[13,25,37],A=5
+const L={
+straight:y=&gt;`M${X0} ${y}L${X1} ${y}`,
+wavy:y=&gt;`M${X0} ${y}Q${X0+4} ${y-3} ${X0+8} ${y}T${X0+16} ${y}T${X0+24} ${y}T${X1} ${y}`,
+sharp:y=&gt;{let d=`M${X0} ${y}`;for(let x=X0;x&lt;X1;x+=8)d+=`L${x+4} ${y-3.5}L${x+8} ${y}`;return d},
+ridge:y=&gt;`M${X0} ${y}L${X0+8} ${y-A}L${X0+16} ${y}L${X0+24} ${y-A}L${X1} ${y}`,
+summit:y=&gt;`M${X0+8} ${y}L${X0+16} ${y-A}L${X0+24} ${y}`,
+toothL:y=&gt;`M${X0} ${y}L${X0+8} ${y-A}L${XM} ${y}`,
+halfL:y=&gt;`M${X0} ${y}L${XM} ${y}`,
+toothR:y=&gt;`M${XM} ${y}L${X1-8} ${y-A}L${X1} ${y}`,
+halfR:y=&gt;`M${XM} ${y}L${X1} ${y}`
+}
+const name={straight:&quot;straight&quot;,wavy:&quot;wavy&quot;,sharp:&quot;sharp&quot;,ridge:&quot;ridge&quot;,summit:&quot;single ridge&quot;,toothL:&quot;single ridge, left&quot;,halfL:&quot;half line, left&quot;,toothR:&quot;single ridge, right&quot;,halfR:&quot;half line, right&quot;}
+const MAIN=[
+[&quot;plain&quot;,[&quot;straight&quot;,&quot;straight&quot;,&quot;straight&quot;]],
+[&quot;water&quot;,[&quot;wavy&quot;,&quot;wavy&quot;,&quot;wavy&quot;]],
+[&quot;river&quot;,[&quot;straight&quot;,&quot;wavy&quot;,&quot;straight&quot;]],
+[&quot;beach&quot;,[&quot;straight&quot;,&quot;wavy&quot;,&quot;wavy&quot;]],
+[&quot;marsh&quot;,[&quot;straight&quot;,&quot;straight&quot;,&quot;wavy&quot;]],
+[&quot;forest&quot;,[&quot;sharp&quot;,&quot;sharp&quot;,&quot;straight&quot;]],
+[&quot;mountain&quot;,[&quot;ridge&quot;,&quot;ridge&quot;,&quot;straight&quot;]],
+[&quot;cliff&quot;,[&quot;toothL&quot;,&quot;halfL&quot;,&quot;wavy&quot;]],
+[&quot;peak&quot;,[&quot;summit&quot;,&quot;ridge&quot;,&quot;straight&quot;]],
+[&quot;cliff, right&quot;,[&quot;toothR&quot;,&quot;halfR&quot;,&quot;wavy&quot;]]
+]
+const svg=(rows,s)=&gt;`&lt;svg class=&quot;ic&quot; viewBox=&quot;0 0 48 48&quot; width=&quot;${s}&quot; height=&quot;${s}&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;${rows.map((t,i)=&gt;L[t](Y[i])).join(&quot;&quot;)}&quot;/&gt;&lt;/svg&gt;`
+const recipe=rows=&gt;{const u=[...new Set(rows)];return u.length===1?`3 ${name[u[0]]}`:rows.map(t=&gt;name[t]).join(&quot; · &quot;)}
+document.getElementById(&quot;main&quot;).innerHTML=MAIN.map(([n,rows])=&gt;`&lt;div class=&quot;lc&quot;&gt;${svg(rows,96)}&lt;div class=&quot;sm&quot;&gt;${svg(rows,32)}${svg(rows,24)}${svg(rows,16)}&lt;/div&gt;&lt;div class=&quot;n&quot;&gt;${n}&lt;/div&gt;&lt;div class=&quot;r&quot;&gt;${recipe(rows)}&lt;/div&gt;&lt;/div&gt;`).join(&quot;&quot;)
+&lt;/script&gt;
+&lt;script&gt;new ResizeObserver(()=&gt;parent.postMessage({id:&#x27;land_types_three_lines_v5&#x27;,h:document.documentElement.scrollHeight},&#x27;*&#x27;)).observe(document.body)&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;" loading='lazy'></iframe></section>
+<section><h2>6 · five levels high → low, variable line counts, each line labelled</h2><iframe id='land_types_layered_levels' srcdoc="&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&#x27;utf-8&#x27;&gt;&lt;style&gt;:root{--text-primary:#141414;--text-secondary:#5f5e5a;--text-muted:#888780;--surface-2:#fbfaf7;--surface-1:#f4f1ea;--border:rgba(20,20,20,.14);--border-strong:rgba(20,20,20,.25);--font-sans:ui-sans-serif,system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--text-primary:#efebe2;--text-secondary:#b4b2a9;--text-muted:#888780;--surface-2:#1c1c1b;--surface-1:#141413;--border:rgba(239,235,226,.14);--border-strong:rgba(239,235,226,.25)}}
+html,body{margin:0;background:var(--surface-1);color:var(--text-primary);font:16px/1.5 var(--font-sans)}body{padding:0 16px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h2 class=&quot;sr-only&quot;&gt;Land types built from five terrain levels stacked high to low: summit, rock, trees, ground, water; each type shows which levels it stacks and in what order&lt;/h2&gt;
+&lt;style&gt;
+.key{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:1rem 0 .5rem}
+.kc{display:grid;justify-items:center;gap:4px;font-size:13px;color:var(--text-secondary)}
+.kc b{font-weight:500;color:var(--text-primary)}
+.arrow{font-size:12px;color:var(--text-muted);text-align:center;margin:0 0 .75rem}
+.lg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;padding:0 0 1rem}
+.lc{display:grid;gap:6px;padding:12px 14px;border:0.5px solid var(--border);border-radius:12px;background:var(--surface-2)}
+.lc .top{display:grid;grid-template-columns:auto 1fr;align-items:baseline;gap:8px}
+.lc .n{font-size:15px;font-weight:500}
+.lc .h{font-size:12px;color:var(--text-muted);text-align:right}
+.lc .sm{display:grid;grid-auto-flow:column;justify-content:start;gap:12px;align-items:center}
+svg path.ln{fill:none;stroke:var(--text-primary);stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
+svg text{fill:var(--text-secondary);font-size:5.5px;font-family:var(--font-sans)}
+svg line.g{stroke:var(--border);stroke-width:.4}
+&lt;/style&gt;
+&lt;div class=&quot;key&quot; id=&quot;key&quot;&gt;&lt;/div&gt;
+&lt;p class=&quot;arrow&quot;&gt;high → low · every icon stacks its levels in this order&lt;/p&gt;
+&lt;div class=&quot;lg&quot; id=&quot;main&quot;&gt;&lt;/div&gt;
+&lt;script&gt;
+const X0=8,X1=40,XM=24,S=11,A=4.5
+const G={
+summit:y=&gt;`M${X0+8} ${y}L${X0+16} ${y-A}L${X0+24} ${y}`,
+rock:y=&gt;`M${X0} ${y}L${X0+8} ${y-A}L${X0+16} ${y}L${X0+24} ${y-A}L${X1} ${y}`,
+trees:y=&gt;{let d=`M${X0} ${y}`;for(let x=X0;x&lt;X1;x+=8)d+=`L${x+4} ${y-3.5}L${x+8} ${y}`;return d},
+ground:y=&gt;`M${X0} ${y}L${X1} ${y}`,
+water:y=&gt;`M${X0} ${y}Q${X0+4} ${y-3} ${X0+8} ${y}T${X0+16} ${y}T${X0+24} ${y}T${X1} ${y}`,
+&quot;rock, left&quot;:y=&gt;`M${X0} ${y}L${X0+8} ${y-A}L${XM} ${y}`,
+&quot;ground, left&quot;:y=&gt;`M${X0} ${y}L${XM} ${y}`
+}
+const AMP={summit:A,rock:A,trees:3.5,&quot;rock, left&quot;:A}
+const KEY=[&quot;summit&quot;,&quot;rock&quot;,&quot;trees&quot;,&quot;ground&quot;,&quot;water&quot;]
+const TYPES=[
+[&quot;water&quot;,&quot;lowest&quot;,[&quot;water&quot;,&quot;water&quot;,&quot;water&quot;]],
+[&quot;beach&quot;,&quot;&quot;,[&quot;ground&quot;,&quot;water&quot;,&quot;water&quot;]],
+[&quot;marsh&quot;,&quot;&quot;,[&quot;ground&quot;,&quot;ground&quot;,&quot;water&quot;]],
+[&quot;river&quot;,&quot;banks either side&quot;,[&quot;ground&quot;,&quot;water&quot;,&quot;ground&quot;]],
+[&quot;plain&quot;,&quot;&quot;,[&quot;ground&quot;,&quot;ground&quot;,&quot;ground&quot;]],
+[&quot;forest&quot;,&quot;&quot;,[&quot;trees&quot;,&quot;trees&quot;,&quot;ground&quot;]],
+[&quot;mountain&quot;,&quot;&quot;,[&quot;rock&quot;,&quot;rock&quot;,&quot;ground&quot;]],
+[&quot;cliff&quot;,&quot;rock over the sea&quot;,[&quot;rock, left&quot;,&quot;ground, left&quot;,&quot;water&quot;,&quot;water&quot;]],
+[&quot;peak&quot;,&quot;highest&quot;,[&quot;summit&quot;,&quot;rock&quot;,&quot;rock&quot;,&quot;ground&quot;]]
+]
+const lay=rows=&gt;{const n=rows.length,top=AMP[rows[0]]||0,h=(n-1)*S+top,y0=(48-h)/2+top;return rows.map((r,i)=&gt;[r,y0+i*S])}
+const icon=(rows,s,labels)=&gt;{const L=lay(rows);const w=labels?100:48;return `&lt;svg viewBox=&quot;0 0 ${w} 48&quot; width=&quot;${s*w/48}&quot; height=&quot;${s}&quot; aria-hidden=&quot;true&quot;&gt;${labels?L.map(([r,y])=&gt;`&lt;line class=&quot;g&quot; x1=&quot;44&quot; y1=&quot;${y}&quot; x2=&quot;52&quot; y2=&quot;${y}&quot;/&gt;&lt;text x=&quot;55&quot; y=&quot;${y+1.9}&quot;&gt;${r}&lt;/text&gt;`).join(&quot;&quot;):&quot;&quot;}&lt;path class=&quot;ln&quot; d=&quot;${L.map(([r,y])=&gt;G[r](y)).join(&quot;&quot;)}&quot;/&gt;&lt;/svg&gt;`}
+document.getElementById(&quot;key&quot;).innerHTML=KEY.map(k=&gt;`&lt;div class=&quot;kc&quot;&gt;${icon([k],40)}&lt;b&gt;${k}&lt;/b&gt;&lt;/div&gt;`).join(&quot;&quot;)
+document.getElementById(&quot;main&quot;).innerHTML=TYPES.map(([n,h,rows])=&gt;`&lt;div class=&quot;lc&quot;&gt;&lt;div class=&quot;top&quot;&gt;&lt;span class=&quot;n&quot;&gt;${n}&lt;/span&gt;&lt;span class=&quot;h&quot;&gt;${h}&lt;/span&gt;&lt;/div&gt;${icon(rows,88,true)}&lt;div class=&quot;sm&quot;&gt;${icon(rows,32)}${icon(rows,24)}${icon(rows,16)}&lt;/div&gt;&lt;/div&gt;`).join(&quot;&quot;)
+&lt;/script&gt;
+&lt;script&gt;new ResizeObserver(()=&gt;parent.postMessage({id:&#x27;land_types_layered_levels&#x27;,h:document.documentElement.scrollHeight},&#x27;*&#x27;)).observe(document.body)&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;" loading='lazy'></iframe></section>
+<section><h2>7 · cut-paper silhouettes in a round window</h2><iframe id='land_types_paper_cut_layers' srcdoc="&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&#x27;utf-8&#x27;&gt;&lt;style&gt;:root{--text-primary:#141414;--text-secondary:#5f5e5a;--text-muted:#888780;--surface-2:#fbfaf7;--surface-1:#f4f1ea;--border:rgba(20,20,20,.14);--border-strong:rgba(20,20,20,.25);--font-sans:ui-sans-serif,system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--text-primary:#efebe2;--text-secondary:#b4b2a9;--text-muted:#888780;--surface-2:#1c1c1b;--surface-1:#141413;--border:rgba(239,235,226,.14);--border-strong:rgba(239,235,226,.25)}}
+html,body{margin:0;background:var(--surface-1);color:var(--text-primary);font:16px/1.5 var(--font-sans)}body{padding:0 16px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h2 class=&quot;sr-only&quot;&gt;Land types as paper-cut layered silhouettes in a round window: summit, rock, trees, ground and water stacked back to front, lighter at the back and darker at the front&lt;/h2&gt;
+&lt;style&gt;
+.wrap{background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:16px;margin:1rem 0}
+.key{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.kc{display:grid;justify-items:center;gap:4px;font-size:13px;color:var(--text-primary)}
+.arrow{font-size:12px;color:var(--text-muted);text-align:center;margin:10px 0 0}
+.lg{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.lc{display:grid;justify-items:center;gap:8px;padding:14px 10px 12px;border:0.5px solid var(--border);border-radius:12px;background:var(--surface-2)}
+.lc .n{font-size:15px;font-weight:500}
+.lc .r{font-size:12px;color:var(--text-secondary);text-align:center;line-height:1.4}
+.lc .sm{display:grid;grid-auto-flow:column;gap:12px;align-items:center}
+&lt;/style&gt;
+&lt;div class=&quot;wrap&quot;&gt;&lt;div class=&quot;key&quot; id=&quot;key&quot;&gt;&lt;/div&gt;&lt;p class=&quot;arrow&quot;&gt;back and high → front and low&lt;/p&gt;&lt;/div&gt;
+&lt;div class=&quot;lg&quot; id=&quot;main&quot;&gt;&lt;/div&gt;
+&lt;script&gt;
+let uid=0
+const B=50
+const close=d=&gt;`${d}L${B} ${B}L-2 ${B}Z`
+const E={
+water:y=&gt;{let d=`M-2 ${y}`;for(let x=-2,k=0;x&lt;50;x+=6,k++)d+=`Q${x+3} ${y+(k%2?2.4:-2.4)} ${x+6} ${y}`;return close(d)},
+ground:y=&gt;close(`M-2 ${y+1.5}C12 ${y-3.5} 30 ${y+3.5} 50 ${y-1.5}`),
+trees:y=&gt;{const w=[7,6,8,6,7,6,8,6];let x=-2,d=`M-2 ${y}`;for(const s of w){const r=s*0.58;d+=`A${r.toFixed(2)} ${r.toFixed(2)} 0 1 1 ${x+s} ${y}`;x+=s}return close(d)},
+rock:y=&gt;close(`M-2 ${y-2}L4 ${y-6}L9 ${y-2.5}L15 ${y-9}L20 ${y-3.5}L26 ${y-7.5}L32 ${y-1.5}L38 ${y-6.5}L44 ${y-2}L50 ${y-4.5}`),
+summit:y=&gt;close(`M-2 ${y}L10 ${y-3}L17 ${y-9}L24 ${y-16}L30 ${y-8}L36 ${y-4}L50 ${y-1}`),
+cliff:y=&gt;`M-2 ${y-7}L5 ${y-11}L11 ${y-8}L17 ${y-12}L23 ${y-10}L24 ${y+2}L25 ${B}L-2 ${B}Z`
+}
+const SNOW=y=&gt;`M19.6 ${y-11.6}L22 ${y-9.6}L24 ${y-12}L26.2 ${y-9.8}L28.2 ${y-11.4}`
+const tone=p=&gt;`color-mix(in srgb, var(--text-primary) ${p}%, var(--surface-2))`
+const icon=(rows,s)=&gt;{
+const id=&quot;c&quot;+(uid++),n=rows.length
+const ys=n===1?[27]:rows.map((_,i)=&gt;19+i*18/(n-1))
+let g=&quot;&quot;
+rows.forEach((r,i)=&gt;{const p=n===1?100:Math.round(32+68*i/(n-1));g+=`&lt;path d=&quot;${E[r](ys[i])}&quot; fill=&quot;${tone(p)}&quot; stroke=&quot;var(--surface-2)&quot; stroke-width=&quot;1.6&quot; stroke-linejoin=&quot;round&quot;/&gt;`;if(r===&quot;summit&quot;)g+=`&lt;path d=&quot;${SNOW(ys[i])}&quot; fill=&quot;none&quot; stroke=&quot;var(--surface-2)&quot; stroke-width=&quot;1.5&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;/&gt;`})
+return `&lt;svg viewBox=&quot;0 0 48 48&quot; width=&quot;${s}&quot; height=&quot;${s}&quot; aria-hidden=&quot;true&quot;&gt;&lt;clipPath id=&quot;${id}&quot;&gt;&lt;circle cx=&quot;24&quot; cy=&quot;24&quot; r=&quot;21.5&quot;/&gt;&lt;/clipPath&gt;&lt;g clip-path=&quot;url(#${id})&quot;&gt;${g}&lt;/g&gt;&lt;/svg&gt;`}
+const KEY=[&quot;summit&quot;,&quot;rock&quot;,&quot;trees&quot;,&quot;ground&quot;,&quot;water&quot;]
+const TYPES=[
+[&quot;water&quot;,[&quot;water&quot;,&quot;water&quot;,&quot;water&quot;]],
+[&quot;beach&quot;,[&quot;ground&quot;,&quot;water&quot;,&quot;water&quot;]],
+[&quot;marsh&quot;,[&quot;ground&quot;,&quot;ground&quot;,&quot;water&quot;]],
+[&quot;river&quot;,[&quot;ground&quot;,&quot;water&quot;,&quot;ground&quot;]],
+[&quot;plain&quot;,[&quot;ground&quot;,&quot;ground&quot;,&quot;ground&quot;]],
+[&quot;forest&quot;,[&quot;trees&quot;,&quot;trees&quot;,&quot;ground&quot;]],
+[&quot;mountain&quot;,[&quot;rock&quot;,&quot;rock&quot;,&quot;ground&quot;]],
+[&quot;cliff&quot;,[&quot;cliff&quot;,&quot;water&quot;,&quot;water&quot;]],
+[&quot;peak&quot;,[&quot;summit&quot;,&quot;rock&quot;,&quot;rock&quot;,&quot;ground&quot;]]
+]
+document.getElementById(&quot;key&quot;).innerHTML=KEY.map(k=&gt;`&lt;div class=&quot;kc&quot;&gt;${icon([k],44)}&lt;span&gt;${k}&lt;/span&gt;&lt;/div&gt;`).join(&quot;&quot;)
+document.getElementById(&quot;main&quot;).innerHTML=TYPES.map(([n,rows])=&gt;`&lt;div class=&quot;lc&quot;&gt;${icon(rows,96)}&lt;div class=&quot;sm&quot;&gt;${icon(rows,32)}${icon(rows,24)}${icon(rows,16)}&lt;/div&gt;&lt;div class=&quot;n&quot;&gt;${n}&lt;/div&gt;&lt;div class=&quot;r&quot;&gt;${rows.map(r=&gt;r===&quot;cliff&quot;?&quot;rock face&quot;:r).join(&quot; · &quot;)}&lt;/div&gt;&lt;/div&gt;`).join(&quot;&quot;)
+&lt;/script&gt;
+&lt;script&gt;new ResizeObserver(()=&gt;parent.postMessage({id:&#x27;land_types_paper_cut_layers&#x27;,h:document.documentElement.scrollHeight},&#x27;*&#x27;)).observe(document.body)&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;" loading='lazy'></iframe></section>
+<section><h2>8 · the same layers in the free-vector ink style</h2><iframe id='land_types_layered_ink' srcdoc="&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&#x27;utf-8&#x27;&gt;&lt;style&gt;:root{--text-primary:#141414;--text-secondary:#5f5e5a;--text-muted:#888780;--surface-2:#fbfaf7;--surface-1:#f4f1ea;--border:rgba(20,20,20,.14);--border-strong:rgba(20,20,20,.25);--font-sans:ui-sans-serif,system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--text-primary:#efebe2;--text-secondary:#b4b2a9;--text-muted:#888780;--surface-2:#1c1c1b;--surface-1:#141413;--border:rgba(239,235,226,.14);--border-strong:rgba(239,235,226,.25)}}
+html,body{margin:0;background:var(--surface-1);color:var(--text-primary);font:16px/1.5 var(--font-sans)}body{padding:0 16px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h2 class=&quot;sr-only&quot;&gt;Land types built from five stacked levels, drawn in the ink style of the earlier icons: pen lines, solid masses and hatching, back rows lighter and front rows bolder&lt;/h2&gt;
+&lt;style&gt;
+.wrap{background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:16px;margin:1rem 0}
+.key{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.kc{display:grid;justify-items:center;gap:4px;font-size:13px;color:var(--text-primary)}
+.arrow{font-size:12px;color:var(--text-muted);text-align:center;margin:10px 0 0}
+.lg{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.lc{display:grid;justify-items:center;gap:8px;padding:14px 10px 12px;border:0.5px solid var(--border);border-radius:12px;background:var(--surface-2)}
+.lc .n{font-size:15px;font-weight:500}
+.lc .r{font-size:12px;color:var(--text-secondary);text-align:center;line-height:1.4}
+.lc .sm{display:grid;grid-auto-flow:column;gap:12px;align-items:center}
+.ik .s{fill:none;stroke:var(--text-primary);stroke-width:.1;stroke-linecap:round;stroke-linejoin:round}
+.ik .t{fill:none;stroke:var(--text-primary);stroke-width:.055;stroke-linecap:round;stroke-linejoin:round}
+.ik .gap{fill:none;stroke:var(--surface-2);stroke-width:.27;stroke-linecap:round;stroke-linejoin:round}
+.ik .ps{fill:none;stroke:var(--surface-2);stroke-width:.1;stroke-linecap:round;stroke-linejoin:round}
+.ik .f{fill:var(--text-primary)}
+.ik .h{fill:url(#hp)}
+&lt;/style&gt;
+&lt;svg width=&quot;0&quot; height=&quot;0&quot; style=&quot;position:absolute&quot; aria-hidden=&quot;true&quot;&gt;&lt;defs&gt;&lt;pattern id=&quot;hp&quot; patternUnits=&quot;userSpaceOnUse&quot; width=&quot;.09&quot; height=&quot;.09&quot; patternTransform=&quot;rotate(-30)&quot;&gt;&lt;rect width=&quot;.09&quot; height=&quot;.032&quot; style=&quot;fill:var(--text-primary)&quot;/&gt;&lt;/pattern&gt;&lt;/defs&gt;&lt;/svg&gt;
+&lt;div class=&quot;wrap&quot;&gt;&lt;div class=&quot;key&quot; id=&quot;key&quot;&gt;&lt;/div&gt;&lt;p class=&quot;arrow&quot;&gt;back and high → front and low · the last of each kind is drawn bold, the ones behind it light&lt;/p&gt;&lt;/div&gt;
+&lt;div class=&quot;lg&quot; id=&quot;main&quot;&gt;&lt;/div&gt;
+&lt;script&gt;
+const n=v=&gt;+v.toFixed(3)
+const H={summit:.66,rock:.4,cliff:.42,trees:.36,ground:0,water:.08}
+const R={
+ground:(y,w,fr)=&gt;`&lt;line class=&quot;gap&quot; x1=&quot;${n(-w)}&quot; y1=&quot;${n(y)}&quot; x2=&quot;${n(w)}&quot; y2=&quot;${n(y)}&quot;/&gt;&lt;line class=&quot;${fr?&quot;s&quot;:&quot;t&quot;}&quot; x1=&quot;${n(-w)}&quot; y1=&quot;${n(y)}&quot; x2=&quot;${n(w)}&quot; y2=&quot;${n(y)}&quot;/&gt;`,
+water:(y,w,fr)=&gt;{const k=Math.max(4,Math.round(2*w/.22)),st=2*w/k;let d=`M${n(-w)} ${n(y)}`;for(let i=0;i&lt;k;i++){const x=-w+i*st;d+=`Q${n(x+st/2)} ${n(y+(i%2?.085:-.085))} ${n(x+st)} ${n(y)}`}return `&lt;path class=&quot;gap&quot; d=&quot;${d}&quot;/&gt;&lt;path class=&quot;${fr?&quot;s&quot;:&quot;t&quot;}&quot; d=&quot;${d}&quot;/&gt;`},
+trees:(y,w,fr,i)=&gt;{const rs=fr?[.17,.21,.16,.2]:[.15,.18,.16,.17];const k=rs.length,sp=(2*w-.34)/(k-1),off=fr?0:sp/2;let g=&quot;&quot;;rs.forEach((r,j)=&gt;{let x=-w+.17+j*sp+off;if(x&gt;w-.12)x-=2*w-.34+sp*0;if(x&gt;w-.12)return;const cy=y-r*.82;g+=fr?`&lt;circle class=&quot;f&quot; cx=&quot;${n(x)}&quot; cy=&quot;${n(cy)}&quot; r=&quot;${r}&quot;/&gt;&lt;circle class=&quot;ps&quot; cx=&quot;${n(x)}&quot; cy=&quot;${n(cy)}&quot; r=&quot;${r}&quot;/&gt;`:`&lt;circle class=&quot;h&quot; cx=&quot;${n(x)}&quot; cy=&quot;${n(cy)}&quot; r=&quot;${r}&quot;/&gt;`});return g},
+rock:(y,w,fr,i)=&gt;{const fx=[-1,-.62,-.36,-.04,.3,.6,1],fh=[0,.62,.3,1,.45,.82,0],m=fr?1:-1;const pts=fx.map((f,j)=&gt;`${n(m*f*w)},${n(y-fh[j]*H.rock)}`).join(&quot; &quot;);return fr?`&lt;polygon class=&quot;f&quot; points=&quot;${pts}&quot;/&gt;&lt;polygon class=&quot;ps&quot; points=&quot;${pts}&quot;/&gt;`:`&lt;polygon class=&quot;h&quot; points=&quot;${pts}&quot;/&gt;`},
+summit:(y)=&gt;{const pts=`-0.4,${n(y)} 0,${n(y-.66)} 0.4,${n(y)}`;return `&lt;polygon class=&quot;f&quot; points=&quot;${pts}&quot;/&gt;&lt;polygon class=&quot;ps&quot; points=&quot;${pts}&quot;/&gt;&lt;polyline class=&quot;ps&quot; points=&quot;-0.15,${n(y-.4)} -0.06,${n(y-.48)} 0.02,${n(y-.4)} 0.09,${n(y-.47)} 0.15,${n(y-.39)}&quot;/&gt;`},
+cliff:(y,w)=&gt;{const pts=`${n(-w)},${n(y+.55)} ${n(-w)},${n(y-.28)} -0.5,${n(y-.4)} -0.3,${n(y-.33)} -0.1,${n(y-.44)} 0.04,${n(y-.42)} 0.09,${n(y+.55)}`;return `&lt;polygon class=&quot;f&quot; points=&quot;${pts}&quot;/&gt;`}
+}
+const icon=(rows,s)=&gt;{
+const N=rows.length,ys=[0];for(let i=1;i&lt;N;i++)ys.push(ys[i-1]+.18+.45*H[rows[i]]+(rows[i-1]===&quot;cliff&quot;?.12:0))
+const top=Math.min(...rows.map((r,i)=&gt;ys[i]-H[r])),bot=Math.max(...rows.map((r,i)=&gt;ys[i]+(r===&quot;water&quot;?.09:.05)))
+const sh=-(top+bot)/2+.02
+let g=&quot;&quot;;rows.forEach((r,i)=&gt;{const fr=rows.slice(i+1).indexOf(r)&lt;0;const w=.78-.07*(N-1-i);g+=R[r](ys[i]+sh,w,fr,i)})
+return `&lt;svg class=&quot;ik&quot; viewBox=&quot;-1 -1 2 2&quot; width=&quot;${s}&quot; height=&quot;${s}&quot; aria-hidden=&quot;true&quot;&gt;${g}&lt;/svg&gt;`}
+const KEY=[&quot;summit&quot;,&quot;rock&quot;,&quot;trees&quot;,&quot;ground&quot;,&quot;water&quot;]
+const TYPES=[
+[&quot;water&quot;,[&quot;water&quot;,&quot;water&quot;,&quot;water&quot;]],
+[&quot;beach&quot;,[&quot;ground&quot;,&quot;water&quot;,&quot;water&quot;]],
+[&quot;marsh&quot;,[&quot;ground&quot;,&quot;ground&quot;,&quot;water&quot;]],
+[&quot;river&quot;,[&quot;ground&quot;,&quot;water&quot;,&quot;ground&quot;]],
+[&quot;plain&quot;,[&quot;ground&quot;,&quot;ground&quot;,&quot;ground&quot;]],
+[&quot;forest&quot;,[&quot;trees&quot;,&quot;trees&quot;,&quot;ground&quot;]],
+[&quot;mountain&quot;,[&quot;rock&quot;,&quot;rock&quot;,&quot;ground&quot;]],
+[&quot;cliff&quot;,[&quot;cliff&quot;,&quot;water&quot;,&quot;water&quot;]],
+[&quot;peak&quot;,[&quot;summit&quot;,&quot;rock&quot;,&quot;rock&quot;,&quot;ground&quot;]]
+]
+document.getElementById(&quot;key&quot;).innerHTML=KEY.map(k=&gt;`&lt;div class=&quot;kc&quot;&gt;${icon([k],48)}&lt;span&gt;${k}&lt;/span&gt;&lt;/div&gt;`).join(&quot;&quot;)
+document.getElementById(&quot;main&quot;).innerHTML=TYPES.map(([nm,rows])=&gt;`&lt;div class=&quot;lc&quot;&gt;${icon(rows,96)}&lt;div class=&quot;sm&quot;&gt;${icon(rows,32)}${icon(rows,24)}${icon(rows,16)}&lt;/div&gt;&lt;div class=&quot;n&quot;&gt;${nm}&lt;/div&gt;&lt;div class=&quot;r&quot;&gt;${rows.map(r=&gt;r===&quot;cliff&quot;?&quot;rock face&quot;:r).join(&quot; · &quot;)}&lt;/div&gt;&lt;/div&gt;`).join(&quot;&quot;)
+&lt;/script&gt;
+&lt;script&gt;new ResizeObserver(()=&gt;parent.postMessage({id:&#x27;land_types_layered_ink&#x27;,h:document.documentElement.scrollHeight},&#x27;*&#x27;)).observe(document.body)&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;" loading='lazy'></iframe></section>
+</main>
+<script>addEventListener("message",e=>{const f=document.getElementById(e.data&&e.data.id);if(f)f.style.height=(e.data.h+8)+"px"})</script>
+</body></html>

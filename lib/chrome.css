@@ -1,0 +1,146 @@
+/* THE GAME'S CHROME, in CSS — for the playground and the pages it frames: the
+   game face at 16px on the light paper, and every CONTROL (a button, a field)
+   a label box as render.js labelBox draws one — square paper, a 2px ink
+   border, a 22px row padded 6px either side. Only what you click is boxed;
+   the rest is plain text, held back by its strength. A box pointed at or
+   switched on is INVERTED — ink, with a paper figure; a disabled one keeps its
+   box and fades its text. Buttons in a row (.cells) butt edge to edge, so the
+   shared edge is one border, as on the canvas. Everything is scoped to
+   `.chrome`, at zero specificity but the states, so a page's own rules win
+   over the base look and loading this into the game's own page (the
+   playground does) changes nothing there. */
+
+@font-face {
+  font-family: "Source Code Pro";
+  src: url("../fonts/SourceCodePro-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: block;
+}
+@font-face {
+  font-family: "Source Code Pro";
+  src: url("../fonts/SourceCodePro-Semibold.woff2") format("woff2");
+  font-weight: 600;
+  font-display: block;
+}
+
+/* ONE LOOK: the light paper, no theme switch */
+:where(:root) {
+  color-scheme: light;
+  --surface: #f2f1ee;
+  --text: #1b1b1b;
+  --font: "Source Code Pro", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+:where(.chrome) {
+  --dim: color-mix(in srgb, var(--text) 55%, var(--surface)); /* the held-back text */
+  --faint: color-mix(in srgb, var(--text) 40%, var(--surface)); /* a disabled box's text */
+  font: 600 16px var(--font);
+  color: var(--text);
+  background: var(--surface);
+}
+:where(.chrome) a {
+  color: inherit;
+}
+
+/* the box: the 22px row is the border's middle, so the outer edge is 24px and
+   the text sits 6px in from the row's edge. The line is 18px over a 2px foot so
+   the text's middle lands where the canvas's `middle` baseline puts it — CSS
+   centres the font's whole height, the canvas only its em, a pixel higher */
+:where(.chrome) :where(button, input, select, textarea) {
+  box-sizing: border-box;
+  min-height: 24px;
+  margin: 0;
+  padding: 0 5px 2px;
+  border: 2px solid var(--text);
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--text);
+  font: 600 16px/18px var(--font);
+}
+:where(.chrome) button {
+  cursor: pointer;
+}
+/* pointed at, or on: inverted */
+:where(.chrome) button:is(:hover, :focus-visible):not(:disabled, .off),
+:where(.chrome) button:is(.on, .sel, .active, [aria-pressed="true"]) {
+  background: var(--text);
+  color: var(--surface);
+  outline: none;
+}
+:where(.chrome) button:is(:disabled, .off) {
+  color: var(--faint);
+  cursor: default;
+}
+/* a field being typed in: the hover's dash, round the box */
+:where(.chrome) :is(input, select, textarea):focus-visible {
+  outline: 2px dashed var(--text);
+  outline-offset: 2px;
+}
+
+/* a checkbox is a small box, inverted when on */
+:where(.chrome) input[type="checkbox"] {
+  appearance: none;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  padding: 0;
+  vertical-align: -3px;
+  cursor: pointer;
+}
+:where(.chrome) input[type="checkbox"]:checked {
+  background: var(--text);
+}
+
+/* a range is a 2px line with a box riding it */
+:where(.chrome) input[type="range"] {
+  appearance: none;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+:where(.chrome) input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--text);
+}
+:where(.chrome) input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  box-sizing: border-box;
+  width: 12px;
+  height: 20px;
+  margin-top: -9px;
+  border: 2px solid var(--text);
+  border-radius: 0;
+  background: var(--surface);
+}
+:where(.chrome) input[type="range"]::-moz-range-track {
+  height: 2px;
+  background: var(--text);
+}
+:where(.chrome) input[type="range"]::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 12px;
+  height: 20px;
+  border: 2px solid var(--text);
+  border-radius: 0;
+  background: var(--surface);
+}
+:where(.chrome) input[type="range"]:hover::-webkit-slider-thumb {
+  background: var(--text);
+}
+:where(.chrome) input[type="range"]:hover::-moz-range-thumb {
+  background: var(--text);
+}
+
+/* a ROW of buttons, butted */
+:where(.chrome) .cells {
+  display: grid;
+  grid-auto-flow: column;
+  justify-content: start;
+  align-items: stretch;
+}
+:where(.chrome) .cells > * + * {
+  margin-left: -2px;
+}

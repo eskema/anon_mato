@@ -42,6 +42,13 @@
       color: var(--text);
     }
     canvas { display: block; width: 100vw; height: 100vh; }
+    /* THE OS POINTER IS NEVER SHOWN over the game: the canvas draws its own
+       dot. A blank image rather than `none`, which Brave on macOS kept handing
+       the arrow back from. The playground's overlay sits over the canvas and
+       keeps a normal pointer. */
+    #stage, #loading {
+      cursor: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgAAIAAAUAAXpeqz8AAAAASUVORK5CYII=") 0 0, none;
+    }
 
     /* boot loader — painted immediately, hidden once the world is ready. It says
        NOTHING (2026-09-04): a screen switch is black and only black, never a

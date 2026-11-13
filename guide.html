@@ -4,12 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>anon & mato · field guide</title>
+    <!-- the game's chrome: its face, its paper, its boxes -->
+    <link rel="stylesheet" href="./lib/chrome.css" />
     <style>
-      /* one look: the game's light paper, no theme switch */
       :root {
-        color-scheme: light;
-        --surface: #f2f1ee;
-        --text: #1b1b1b;
         --line: color-mix(in srgb, var(--text) 14%, transparent);
         --line2: color-mix(in srgb, var(--text) 28%, transparent);
         --card: color-mix(in srgb, var(--text) 4%, transparent);
@@ -18,12 +16,10 @@
       body {
         margin: 0;
       }
+      /* prose in the regular cut; the semibold for names, heads and numbers */
       body {
-        font-family: system-ui, sans-serif;
-        font-size: 16px;
+        font-weight: 400;
         line-height: 1.55;
-        background: var(--surface);
-        color: var(--text);
         padding: 28px 24px 80px;
       }
       main {
@@ -33,22 +29,20 @@
         margin: 0 auto;
       }
       h1 {
-        font-size: 20px;
+        font-size: 16px;
         font-weight: 600;
         margin: 0;
       }
       h1 small {
-        opacity: 0.5;
-        font-size: 12px;
+        color: var(--dim);
+        font-size: 16px;
         font-weight: 400;
         margin-left: 12px;
       }
       h2 {
-        font-size: 12px;
+        font-size: 16px;
         font-weight: 600;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        opacity: 0.55;
+        color: var(--dim);
         margin: 0 0 2px;
       }
       section {
@@ -63,16 +57,16 @@
         opacity: 0.85;
       }
       .muted {
-        opacity: 0.6;
+        color: var(--dim);
       }
       b {
         font-weight: 600;
       }
       code {
-        font: 13px ui-monospace, monospace;
+        font: inherit;
+        font-weight: 600;
         background: var(--card);
-        padding: 1px 5px;
-        border-radius: 4px;
+        padding: 0 4px;
       }
       /* the loop strip */
       .loop {
@@ -84,34 +78,28 @@
       .loop .node {
         flex: 1 1 130px;
         border: 1px solid var(--line);
-        border-radius: 10px;
         background: var(--card);
         padding: 10px 12px;
       }
       .loop .node b {
         display: block;
-        font-size: 15px;
       }
       .loop .node span {
-        font-size: 13px;
-        opacity: 0.65;
+        color: var(--dim);
       }
       .loop .arr {
         align-self: center;
-        opacity: 0.4;
-        font-size: 20px;
+        color: var(--dim);
       }
       /* tables */
       table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 14px;
       }
       th {
         text-align: left;
         font-weight: 600;
-        font-size: 12px;
-        opacity: 0.5;
+        color: var(--dim);
         padding: 7px 10px;
         border-bottom: 1px solid var(--line2);
         white-space: nowrap;
@@ -154,14 +142,12 @@
         position: relative;
         height: 6px;
         min-width: 70px;
-        border-radius: 4px;
         background: var(--card);
         border: 1px solid var(--line);
       }
       .bar > span {
         position: absolute;
         inset: 0 auto 0 0;
-        border-radius: 4px;
         background: color-mix(in srgb, var(--text) 55%, transparent);
       }
       /* card grids */
@@ -172,14 +158,13 @@
       }
       .card {
         border: 1px solid var(--line);
-        border-radius: 12px;
         background: var(--card);
         padding: 14px;
         display: grid;
         gap: 8px;
       }
       .card h3 {
-        font-size: 15px;
+        font-size: 16px;
         font-weight: 600;
         margin: 0;
         display: flex;
@@ -187,14 +172,11 @@
         gap: 8px;
       }
       .card .who {
-        font-size: 12px;
-        opacity: 0.55;
+        color: var(--dim);
       }
       .pill {
         display: inline-block;
-        font-size: 12px;
-        padding: 2px 8px;
-        border-radius: 999px;
+        padding: 0 8px;
         border: 1px solid var(--line2);
         white-space: nowrap;
       }
@@ -205,12 +187,10 @@
         align-items: center;
       }
       .eff {
-        font-size: 13px;
         opacity: 0.85;
       }
       .callout {
         border: 1px solid var(--line2);
-        border-radius: 12px;
         padding: 14px 16px;
         display: grid;
         gap: 8px;
@@ -220,7 +200,6 @@
         flex-wrap: wrap;
         gap: 8px;
         align-items: center;
-        font-size: 14px;
       }
       /* ── the plan / vision ── */
       .roadmap {
@@ -235,14 +214,10 @@
       }
       .tag {
         justify-self: start;
-        font-size: 12px;
         font-weight: 600;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        padding: 3px 10px;
-        border-radius: 999px;
+        padding: 0 8px;
         border: 1px dashed var(--line2);
-        opacity: 0.7;
+        color: var(--dim);
       }
       .wheel {
         margin: 2px auto 0;
@@ -260,19 +235,19 @@
         stroke: #fff;
         stroke-width: 3px;
         stroke-linejoin: round;
-        font-family: system-ui, sans-serif;
+        font-family: var(--font);
         font-weight: 600;
         font-size: 13px;
       }
       .wcore {
         fill: #4a4a4a;
-        font-family: system-ui, sans-serif;
+        font-family: var(--font);
         font-size: 13px;
         font-weight: 600;
       }
       .wcore2 {
         fill: #7a7a7a;
-        font-family: system-ui, sans-serif;
+        font-family: var(--font);
         font-size: 11px;
       }
       .pillars {
@@ -282,7 +257,6 @@
       }
       .pillar {
         border: 1px solid var(--line);
-        border-radius: 12px;
         background: var(--card);
         padding: 14px;
         display: grid;
@@ -319,31 +293,20 @@
         gap: 8px;
         flex-wrap: wrap;
       }
-      .trow b {
-        font-size: 15px;
-      }
       .tmeta {
-        font-size: 13px;
-        opacity: 0.6;
+        color: var(--dim);
       }
       .teff {
-        font-size: 13px;
         opacity: 0.85;
       }
       .badge {
-        font-size: 12px;
-        letter-spacing: 0.03em;
-        padding: 1px 8px;
-        border-radius: 999px;
+        padding: 0 8px;
         border: 1px solid var(--line2);
-        opacity: 0.7;
-      }
-      a {
-        color: inherit;
+        color: var(--dim);
       }
     </style>
   </head>
-  <body>
+  <body class="chrome">
     <main id="guide"></main>
     <script type="module" src="./lib/guide.js"></script>
   </body>

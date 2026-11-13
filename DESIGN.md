@@ -143,13 +143,13 @@ for unbuilt features.
   ONCE, on the move's own duration, to the board the route ENDS on instead of
   panning tile-by-tile with the cube, so a winding path never bumps it
   fixed→follow→fixed; within one board it holds still and the cube walks across.
-  Opening the menu centres the tile you stand on. Dragging the map mid-walk
-  holds the camera where you put it until the walk lands.
-  Rendering is one global pass — every discovered tile in the viewport draws,
-  culled at ~4 board-pitches around the camera (anchor read back from the live
-  cam offset, so the ground tracks the viewport even mid-glide) or ~2
-  screenfuls, whichever is smaller. Go-up and exit actions stay hidden until
-  the parent view is earned.
+  Opening the menu centres the tile you stand on. Dragging or zooming the map
+  holds the camera where you put it until your next move takes it back (mid-
+  walk, until the walk lands). Zoomed in past 1:1 a board no longer fits the
+  frame, so the camera frames your tile (or a walk's end) instead of the
+  board's middle. The ground is the GPU map: every found tile, every frame
+  (see *The menu*). Go-up and exit actions stay hidden until the parent view
+  is earned.
 - **Walls**: any side of any hex can be walled — walls are per-hex bitmasks
   (6 bits, one per side) in the ground, keyed by global coords, so both boards
   of a river see the same. A wall on EITHER side of an edge blocks the step
@@ -489,7 +489,7 @@ that skills will stretch later:
   the format, `RULES` stamps replay semantics and bumps on ANY change that
   alters what an old log replays to, and the angle, the key and the world key
   must be this world's (dev-phase rule: mismatched saves reset, stashed under
-  `anon&mato:save:rejected`, not destroyed). `hydrate()` re-dispatches every
+  `hex:save:rejected`, not destroyed). `hydrate()` re-dispatches every
   action with full validation — the reference path the tests use. The game
   boots through `hydrateProgressive()`, which re-APPLIES the known-good log
   without re-deciding it (the same `run` as live play, only the `can` check
@@ -498,7 +498,7 @@ that skills will stretch later:
   you from anywhere and survives only so old logs replay — nothing in the UI
   dispatches it) are logged — pushed before running, they bank as their day's
   last entry, which is what lets a save replay ACROSS days. The controller
-  mirrors every successful dispatch to localStorage (`anon&mato:save` — the
+  mirrors every successful dispatch to localStorage (`hex:save` — the
   STORAGE KEYS keep the old spelling on purpose: renaming one orphans a live
   save or the drawn icon store).
 - **Looking back.** The day cell on the bar drops the played days, and the
@@ -515,9 +515,9 @@ that skills will stretch later:
 - **Restore.** A log row's RESTORE rewinds the SAVE itself to just before that
   row — it and everything after it, later days included, are cut — and
   reboots into the shortened log. The discarded save is kept once under
-  `anon&mato:save:before-restore`.
+  `hex:save:before-restore`.
 - Nostr rides the same format later: one event per banked day (NIP-78 style,
-  `d = anon&mato:<world>:day:<n>` — editing a day republishes one event) plus
+  `d = hex:<world>:day:<n>` — editing a day republishes one event) plus
   a replaceable head event; the npub is the player, and deriving each world
   from the pubkey is a founding goal (collaboration via nostr later).
 
@@ -825,13 +825,18 @@ the snare, and what the fire burns. A recipe worked with a held tool says so
 
 `gather` names its item; a bare `gather` takes the first forage the tile has
 ready, which is how older logs replay. `hunt` is its own action. **The craft
-category is a TIMELINE**, and so is build: a COLUMN per level, set on the
-clock at its level's hour — every level you have reached and the next one that
-holds anything, while the levels past that stay hidden. The level stands as a
-big bare number just inside the dial, where a clock writes its hours, and its
-things hang inward from it, toward the middle, by their full names, in
-label-size boxes as wide as the column's widest; a thing you can't make now is
-faded, and the next level is hollow — dashed borders only, its number faint. Pointing at a thing inverts it, lights what it
+category is a TIMELINE**, and so is build: a COLUMN per level — every level
+you have reached and the next one that holds anything, while the levels past
+that stay hidden — the columns spread evenly round the clock, the first at 12
+o'clock: two sit top and bottom, three four hours apart, twelve an hour
+apart. The level stands as a big bare number just inside the dial, where a
+clock writes its hours, and its things hang inward from it, toward the middle,
+by their full names, in label-size boxes as wide as the column's widest; a
+thing you can't make now is faded, and the next level is hollow — dashed
+borders only, its number faint. Clicking a number closes its column, or opens
+it again; columns start open and a closed one stays closed across reloads
+(`hex:timelineclosed`). Pointing at a closed number raises its names on
+the cursor. Pointing at a thing inverts it, lights what it
 takes green in the timeline, and raises its BILL on the cursor like any hover
 label — the name and minutes, a row per material, red where you are short, then
 any other refusal. Clicking makes it. **The corners light what the bill would
@@ -910,8 +915,8 @@ resource's `tag` is the face it wears in the kitchen.
   yours. At 12 or above nothing drains — a master teaches without losing, and
   so do you. An ordinary figure meets you in the middle; only a master carries
   you to 12.
-- **Where.** With the menu open the twelve skills ride the ring inside the
-  dial, each with its sign just inward of its glyph; facing a figure the sign
+- **Where.** With the menu open the twelve skills ride the ring just outside
+  the dial, each with its sign just inward of its glyph; facing a figure the sign
   reads + (a lesson to take) or − (a level to give), and either is clicked in
   place. A lesson waits out its minutes like any timed work.
 
@@ -920,7 +925,7 @@ resource's `tag` is the face it wears in the kitchen.
 - **Lore is the player's inner voice.** The FIRST time you do a thing, it is
   written down: a verb (move, scout, gather, hunt, eat, cook, craft, build,
   drop, take, learn, teach, raft, bridge, sleep) or a moment (the open gate,
-  the first board that isn't home, the first figure beside you, the first time
+  the first board that isn't home, the first figure found beside you, the first time
   an action leaves no minutes left). What the verb was done to is not a first
   of its own: the first craft is written, not every new thing made. The dev
   helpers write nothing.
@@ -1050,8 +1055,8 @@ is remembered — a key is never asked for twice); a save boots straight to
   the shelf.
 - `lib/setup/angle.js` — the compass the `angle` phase hosts.
 - `lib/clock.js` — the sun and moon: `sunState`/`moonState` are pure, the
-  skill wheel's geometry, `hhmm`, and `drawDial`, the styles page's test dial.
-  Shared with the styles harness so the two can't drift.
+  skill wheel's geometry, `hhmm`, and `drawDial`, the clock page's test dial.
+  Shared with the clock harness so the two can't drift.
 - `lib/draw.js` — shared canvas helpers (the `easeSplit` curve among them).
 - `lib/icons.js` — the line-art glyph system, drawn into the caller's ink.
 - `lib/identity.js` — who is playing, asked once: the pubkey kept, and the
@@ -1059,25 +1064,31 @@ is remembered — a key is never asked for twice); a save boots straight to
 - `lib/app.js` — canvas/screen engine. `lib/main.js` — entry point: a save
   boots the game, no save boots the first phases.
 - `lib/cube.js` — the PLAYGROUND (the title's helpers, from anywhere): tabs
-  cube · icons · animate · guide · styles · world over the game canvas.
+  cube · icons · guide · clock · world · gpu map over the game canvas.
   `lib/cube3d.js` is its draggable 3D lattice, `lib/iconmaker.js` the icon
-  editor.
+  editor. `lib/chrome.css` dresses it and the pages it frames as the game's
+  chrome: the game face at 16px on the light paper, and only what you click
+  boxed — every control a square label box with a 2px ink border, inverted
+  when pointed at or open, its text faded when it's off; the rest plain text,
+  held back by its strength. The anim lab wears the same at the small row
+  (13px), in its own `bench.css`.
 - Dev harnesses, each read STRAIGHT from the game's constants so they can't
   drift: `lib/guide.js` (guide.html, the field guide — the day, resources,
   moving and scouting, carry, craft, build, cooking, crossing water, skills),
-  `lib/styleguide.js` (styles.html), `lib/worldview.js` (world.html, the
-  fully-revealed parent field).
+  `lib/clockview.js` (clock.html, the test dial for the sun and moon math, on
+  sliders), `lib/worldview.js` (world.html, the fully-revealed parent field).
 - `lib/vendor/` — nostr-tools (pure, nip19, pool; nip44 vendored and not yet
   imported) and a sync sha256. `lib/stash/` — code kept and not wired in (the
   googly eye, the old stacked-clock timeline). `lib/radial.js` — the old stats
   card; nothing imports it.
-- `lab/` — the animation lab (`animate.html` + `animations.js` registry +
-  `bench.js` keyframe bench + `menu-scene.js`), `diagnose-stranded.mjs` (replays
+- `lab/` — the animation lab, standing alone at `/lab/animate.html`
+  (`animate.html` + `animations.js` registry + `bench.js` keyframe bench +
+  `menu-scene.js`), `diagnose-stranded.mjs` (replays
   a save through the live `can` checks and flags where the reserve broke), and
   the icon pipelines (`icons/free`, `icons/lattice`).
 - `tools/serve.mjs` — the dev server (`bun run dev`). `tools/build-napp.mjs` —
   `bun run napp` assembles a clean `napp/` folder: the game and the pages the
-  playground frames (guide, styles, world, animate), with every module,
+  playground frames (guide, clock, world, gpu map), with every module,
   stylesheet and font they reach.
 - `test/` — the sim suite (`bun test`), pinned to INVARIANTS (never-strandable,
   replay == live, ratchets only grow, action validation) and, here and there,
@@ -1095,17 +1106,44 @@ is remembered — a key is never asked for twice); a save boots straight to
 ## The menu
 
 - **Clicking the player (or Space) opens it**, anywhere; it never opens
-  itself. The tile you stand on GROWS from itself out to the dial, the world
-  behind it blurred and dimmed, and you rise as a figure — the head lifted
-  over a body. Clicking the tile again (or Space) closes it.
-- **The skills are the categories.** The twelve ride a ring of circles inside
-  the dial, in wheel order; a skill is shown only once met (below). Clicking
+  itself. The MAP ITSELF ZOOMS IN around the tile you stand on — an even,
+  unhurried camera move; opened off-centre, the map first glides you to the
+  middle and the zoom picks up as that glide settles, scaling round your tile
+  wherever it is on the way, so the two read as one move — until that
+  tile's corners stand one view tile inside the drawn-in dial (on a
+  figure's centre, a further two of the figure's shapes in); your tile
+  stays sharp, the zoomed world around it blurred and dimmed, and you rise as
+  a figure — the head lifted over a body. Clicking the tile again (or Space)
+  closes it, and the map zooms back to its own zoom; its hover waits for the
+  close to land. Every category keeps that zoom.
+- **The map zooms.** Menu down, the wheel zooms it about the pointer — from
+  the whole found world fitting the window in to one tile filling the dial —
+  and a drag pans it, on a leash: the middle of the frame stays over found
+  ground. The menu opens from whatever zoom the map is at and closes back to
+  it. EVERYTHING ON THE MAP IS A SHARE OF ITS TILE — the ground's lines, the
+  trails, the stacks and seats, camps, piles, the raft, the frontier dots, the
+  angle line and the arrow, your token — while the dial, the ring, the fan,
+  the labels and the chrome never zoom; the night is the same at every zoom.
+  The hover label on a tile tells its price, its name and height, where it
+  is, and what you ever gathered, hunted or built there.
+- **The skills are the categories.** Opening, the dial draws in to about four
+  fifths of its size — its minutes, the day, the sun and moon all riding it —
+  and the twelve stand out round it, in wheel order at the angle the season
+  has turned the wheel to, each one's shape touching the LIMIT from inside —
+  the biggest circle round the dial that keeps the window's margin on every
+  side, the bar's own depth (its margin and one box row), drawn as a thin
+  dashed circle while the menu is up; closing, it grows back. A skill is shown
+  only once met (below). Clicking
   one opens it — every skill but dream, which is the sleep button. The only
   other node today is `enter`, on the hex cells round the tile (from ring 2
   out, the leap cells first), icons only, its label riding the cursor. Behind
   the cells, one silhouette flush to the hexes.
 - **Helpers** (playground / clear board / clear map / stock pantry / skill
-  levels / reset) hang off the TITLE cell, not the ring. STOCK PANTRY (the
+  levels / frame times / reset) hang off the TITLE cell, not the ring. FRAME
+  TIMES (stored) stands a readout top right: each part of a drawn frame (the
+  map and, apart, its tile builds, the night veil, the menu's blur, the clock,
+  the ring, the labels) in milliseconds of script, averaged over half a second, with the
+  worst frame and the frame rate while frames run back to back. STOCK PANTRY (the
   logged `stockPantry` dev action, at a hearth only)
   puts a unit of every raw food and one fire's branch on your back, whatever it
   weighs, so the kitchen can be looked at without the foraging. The
@@ -1113,7 +1151,44 @@ is remembered — a key is never asked for twice); a save boots straight to
   free like the clears): inside a category they are that skill's — +1, −1, 15,
   1 — and on the ring they move all twelve by one; they hold the list open, so
   a level is a few clicks.
-- **A tile is seven spots** — grown in the menu, it shows an inner hex and
+- **THE MAP IS DRAWN ON THE GPU** (`lib/glmap.js`): the found world's ground
+  as a handful of WebGL2 draws on a canvas of its own, every frame at the
+  frame's camera and zoom, laid down as the world's first layer over the fog's
+  coat — everything else the world draws (the trail, the stacks and seats, the
+  raft, the night veil, the tokens) stays on the game's canvas over it, and
+  the menu's blur and the whoosh take the ground with the rest. Every tile is an instance of one quad, one shader painting it from a
+  few numbers, read off the same rules as everything else (`tileDressOf`,
+  `contourScale`): its ground — ONE COLOUR A KIND, no height shading (the
+  contours tell the height) — its kind's TEXTURE, its joined contours, home's
+  rule, the light SHORE line along water that meets land, the fog eating its
+  rim where it faces the unknown, its walls over the sun's shadow (the sun as
+  it stands that frame), its regrow clock; then the streams and the fog's
+  outward breath over all the tiles. The camera is two uniforms, so zoom and pan repaint nothing; the tiles go up as numbers
+  only when the world changes (and the hour, while the regrow clocks show),
+  each tile's standing facts read once per world. EVERY LINE IS A SHARE OF
+  ITS TILE — the game's widths at its 1:1 tile (`baseTileSize`), scaling with
+  the zoom from there; no pixel widths held, nothing fading in at a
+  threshold, a line under a pixel wide drawn faint in proportion. ONE WATER:
+  river, sea and streams wear the same blue. THE MOTIFS are the tile
+  patterns of the Moorish south, simplified: each tile carries its OWN design,
+  the same in every tile of its kind, drawn from its own middle right out to
+  its edges — built on its corners and edge midpoints, or spaced to fit the
+  grid's own steps exactly — so the lines one tile brings to its border are
+  where its neighbour's begin, and a run of one kind reads as one continuous
+  field. The library: rosette (the seed of life), bubbles (a circle round
+  every corner), rings (circles on the edges' middles), star (through the
+  corners), star lattice (through the edges' middles), ribbon (a band round
+  alternate corners), meander (the band, each tile turning its own way),
+  scales, waves (level, close), hexagon (on the edges' middles), snowflake
+  (the star with a ring in its heart), fine lattice, diamonds, lines, fine
+  lines, weave (wavy lines all three ways of the grid, crossing in the
+  middle). The game wears the user's own picks (2026-10-27): water and river
+  waves, beach hexagon, marsh rosette, plain weave, forest bubbles, mountain
+  star lattice, cliff lines, peak star; home and the centres plain. Their
+  lines are the tile's own colour darkened by 0.15. The playground's `gpu
+  map` tab (`lab/glmap.html`) tries other picks and strengths on your world
+  or a whole one, and remembers its own.
+- **A tile is seven spots** — zoomed in the menu, it shows an inner hex and
   the six wedges between it and the rim. You stand on the wedge you stepped in
   through (a leap: the corner between two; a fresh day: the middle). The map
   and move costs don't see the wedges — it's where the shore, the stream and
@@ -1121,7 +1196,8 @@ is remembered — a key is never asked for twice); a save boots straight to
 - **Every board centre is a special tile** — the resting place of its figure
   (all six interior radial lines, like home's centre). Figures rest there; the
   player stacks BELOW the figure so both show. You inspect a figure only while
-  standing ON its centre, and there the grown tile is a ring smaller.
+  standing ON its centre, and there the menu zooms a little less, to clear the
+  figure's shapes.
 - **The place card.** The place's name stands bottom-right under what lies and
   grows there; pointing at it raises its card: on land the land's facts (the
   biome's whole yield set among them), in the water what you can do from it
@@ -1129,22 +1205,24 @@ is remembered — a key is never asked for twice); a save boots straight to
   npub, what its board mostly is and how much of it you've found.
 - **Skills are met, then shown**: the ring holds only the skills you've
   practised once or been taught (`skillMet`), so the first open is just you
-  and the tile. Craft and build are met with the first thing you pick up, cook
-  with the first food, dream (the sleep button) with the first exhaustion —
-  their glyphs are where they're done. A newly met skill fades in on the next
+  and the tile. Travel is met with the first step, craft and build with the
+  first thing you pick up, cook with the first food, dream (the sleep button)
+  with the first exhaustion — their glyphs are where they're done. A newly met skill fades in on the next
   open, after the ring lands; from then on the sky draws its constellation too.
 - **Inside a category**: the skill's name and level (`3.42`) go to the top
-  LEFT, under the bar, and its glyph to the top-right seat, where it rests as a
-  mark; the middle belongs to the category's own view. Cook is THE KITCHEN;
-  craft and build hang their TIMELINE on the clock's hours; lore holds its
-  JOURNAL; scout spreads THE WORLD MAP — every tile you've found, small, over
-  the whole dial — with its lists top left: the heights found and how many
-  tiles stand at each, the kinds and their counts, every row a filter that
-  keeps what's picked and lets the rest go faint (a picked kind opens its own
-  heights). Pointing at a tile on the map prices the route there. A skill with
-  nothing of its own yet opens empty. The clock stays for the cost previews.
-  Clicking the middle tile steps back to the ring; Escape closes the menu one
-  layer at a time (the corner list → category → ring).
+  LEFT, under your name, and under the title stands the skill's WORD icon
+  (its main one where it has no word yet), as wide as the title — the way back
+  to the ring. The glyph and its turning level shape go together to the
+  top-right seat, larger, and clicking the glyph there is a way back too; the
+  middle belongs to the category's own view and does nothing when clicked. A
+  category's lists hang under the skill's label, flush with its left edge.
+  Cook is THE KITCHEN; craft and build hang their TIMELINE round the clock;
+  lore holds its JOURNAL; scout holds what you have FOUND: its lists stand top
+  left — the heights found and how many tiles stand at each, the kinds and
+  their counts (the world itself is the main map, zoomed out). A skill with
+  nothing of its own yet opens empty. The
+  clock stays for the cost previews. Escape closes the menu one layer at a
+  time (the corner list → category → ring).
 
 ## UI conventions
 
@@ -1170,12 +1248,16 @@ is remembered — a key is never asked for twice); a save boots straight to
   the intent kept across the reload); the day cell drops the played days; the
   clock unrolls the log. One bar menu open at a time; each slides in from under
   the bar the same way. Replaying, the day cell gives way to the transport (see
-  *The action log*). The saves: the live game under `anon&mato:save`, every
-  other game parked whole under `anon&mato:save:game:<angle:worldKey>`; "reset"
-  clears the shelf too, and forgets the key and its profile. Other keys:
+  *The action log*). The saves: the live game under `hex:save`, every other
+  game parked whole under `hex:save:game:<angle:worldKey>`; "reset" clears the
+  shelf too, and forgets the key and its profile. Other keys:
   `:save:rejected` and `:save:before-restore` (see *The action log*),
-  `:save:intent` (session only), `anon&mato:identity`, `anon&mato:icons`, and
-  per-viewer comforts under `anon_mato-` (kept menu seats, the free camera).
+  `:save:intent` (session only), `hex:identity`, `hex:icons`, and per-viewer
+  comforts (kept menu seats, the free camera, closed timeline levels). EVERY
+  KEY lives in `lib/keys.js` under the one neutral prefix `hex:` — never the
+  game's title, which has changed before — and is never renamed; the old
+  names (`anon&mato:…`, `anon_mato-…`, `thrive-…`) are carried over once per
+  browser on load, the old copies left in place.
 - The player cube is a plain hexagon outline + 3 inner radial lines — NOT a
   shaded/3D cube.
 

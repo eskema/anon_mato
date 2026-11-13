@@ -5,6 +5,81 @@ why the rule is the rule; when it starts narrating what we tried last week, it
 moves here. Newest first. Keep entries to what a future self would need to not
 re-propose the idea.
 
+## deep water as a wall (2026-08-04 → 2026-11-13)
+
+- **Only the shallows (elevation 0) took a wader or floated the raft; deeper
+  board water was impassable**, its hover reading "needs a boat" (−1) or "needs
+  a bigger boat" (−2 and below), for a hull that was never built. A lone deep
+  pond was a wall forever: you couldn't wade in to raise anything on it. Kept
+  as an incentive to build better boats; replaced by depth as a price — any
+  water takes a wader and floats the raft, and each point of depth doubles a
+  step (RULES 75). Also dropped with it: the travel skill easing water's depth
+  (it shared the height base, ELEV_STEP → ELEV_STEP_FIT).
+
+## the skills inside the dial (2026-08-09 → 2026-10-28)
+
+- **The menu's skills on a ring inside the full-size dial.** Twelve equal
+  circles packed inside the clock, each tangent to its neighbours and to the
+  ring; the skills sat at their centres (the circles themselves were drawn
+  until 2026-08-10), and the menu zoom stopped your tile one view tile inside
+  that ring. Replaced by the dial drawing in to that circle and the skills
+  standing outside it; the menu zoom kept its size.
+
+## scout's world map (→ 2026-10-27)
+
+- **A second map inside the menu.** Opening scout flew the main map out from
+  your tile to every found tile, fitted to the dial and centred on home's
+  middle; the blur cleared, a circle closed in from the screen's corners to
+  crop the map at the dial, and the night lifted. Its own camera (`scoutCam`)
+  zoomed about the pointer under the wheel and panned under a drag, leashed so
+  the found world's edge met the dial's. Its lists were FILTERS: pick heights,
+  kinds, or a kind's own heights, and every tile let go sank under the fog's
+  coat (a GPU pass, one coat across neighbours let go together). Its hover hung
+  the tile large on the label (the GPU's own drawing of it, alone) over its
+  facts and route price, with a breathing circle on your tile and marching
+  ants out to the cursor. Dropped: two maps with two sets of rules read
+  clunky — its zoom and pan, its fixed-width trails over shrinking tiles, the
+  map hover waking mid-close. One map now: the main map zooms and pans itself,
+  everything on it scales with the tile, the tile's facts ride the map's own
+  hover, and scout's lists are counts.
+- **The night lifting as the map zoomed out** — none at 1:1, all of it with
+  the whole found world in the frame, scout's chart carried over to the main
+  map. Dropped the same day: the night is the same at every zoom.
+
+## the canvas ground (→ 2026-10-27)
+
+- **The map painted on the 2D canvas.** Tile by tile round the camera: the
+  paper, a 5% ink wash, the dress, a HEIGHT TINT per contour step (land darker
+  per step up, water darker per step down, peaks whiter — "hypsometric,
+  inverted"), the merged contours, the fog's edges as gradient quads (breath
+  out, eaten rim, a radial fan at a run's end), walls with a canvas shadow,
+  regrow clocks; the river its own deeper blue with three jittered ripples;
+  streams after all. It was BAKED to an offscreen sheet with a pan margin and
+  blitted at the camera's offset, re-baked on any change of world, light or
+  theme — and for the menu's zoom, kept and blitted SCALED, re-baked each
+  half-octave and once more when the zoom came to rest (`fieldSoft` held the
+  menu's scene cache off it till then). Zoomed far out (`mapLod`, a tile 4→10px)
+  it painted in layers instead, from facts read once per world (`mapFacts`),
+  contours, walls and rules fading in with the size. The menu's own tile and
+  scout's large hover tile were repainted beside it by hand, height tint and
+  all. All of it gave way to the GPU map: one blue for all water, no height
+  tint, every line a share of its tile, and the copies are the GPU's own
+  drawing.
+
+## the tile editor (2026-10-26)
+
+- **Drawing tile motifs by hand.** A playground tab (`lab/tiles.html`,
+  `lib/tiledesign.js`): drag between the dots of a tile's own grid to lay a
+  line (alt: anywhere), cut it into equal divisions, give each division its own
+  shape (line, arc, wave, zigzag, dashes, gap) with a bend and a count, turn the
+  set round the middle ×2/×3/×6 and mirror it, the tile previewed among its six
+  neighbours; designs kept in the browser, and WEAR ON handed one to a kind,
+  which the GPU map baked to a 512px texture layer over the tile and drew.
+  Dropped: clunky and unintuitive. What was wanted is a KALEIDOSCOPE — a few
+  values to tweak, the design repeating and applying itself live — not a vector
+  editor where every line is placed by hand. The motifs are steered by
+  description instead.
+
 ## the docs sweep (→ 2026-10-20)
 
 What DESIGN and VISION still described after the code had moved on.
@@ -865,3 +940,19 @@ since.
   first asked "board or seam?", and the log and the hover named a tile as
   `[board][local]`. Dropped: a tile has one address, its global hex; every
   tile's state sits in one ground per depth; the row is just the `river` type.
+
+## the playground's pages (2026-10-25)
+
+- **The style guide page.** `styles.html` showed the type sizes, the ink
+  alphas, the line widths and dashes, the icon painters at five sizes, the
+  menu glyphs, and a little grid to place icons on, beside the clock harness.
+  Dropped: the clock harness stands alone as `clock.html` (the playground's
+  `clock` tab), and the rest went with the page.
+- **The test dial's waking window.** `drawDial` laid a band from midnight to a
+  budget slider just inside the orbit. Dropped with the slider: the dial shows
+  the sun, the moon and the hour, nothing of the day's budget.
+- **The animate tab.** The anim lab rode in the playground as a tab. It stands
+  alone at `/lab/animate.html` now, and the package leaves it out.
+- **Boxes on everything.** Restyling the playground in the game's chrome, every
+  title, section head, table cell, card, pill and readout became a 2px ink box.
+  Too much the same day: only what you click is boxed, the rest is plain text.

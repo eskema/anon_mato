@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>anon & mato · clock</title>
+  <!-- the game's chrome: its face, its paper, its boxes -->
+  <link rel="stylesheet" href="./lib/chrome.css" />
+  <style>
+    html, body { margin: 0; }
+    body { padding: 24px; }
+    main { display: grid; gap: 20px; max-width: 1100px; }
+    h1 { font-size: 16px; margin: 0; }
+    h1 small { color: var(--dim); font-size: 16px; margin-left: 12px; }
+    main > p { margin: 0; color: var(--dim); }
+    .clockdemo { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+    #clockcanvas { width: clamp(340px, 74vh, 640px); height: clamp(340px, 74vh, 640px); touch-action: none; background: color-mix(in srgb, var(--text) 4%, transparent); }
+    .clockctrl { display: grid; gap: 14px; align-content: start; min-width: 240px; }
+    .clockctrl label { display: grid; gap: 4px; }
+    .clockctrl label span { color: var(--dim); }
+    .clockctrl input[type="range"] { width: 240px; }
+    #clockplay { justify-self: start; }
+    .clockout { opacity: 0.7; line-height: 1.6; }
+  </style>
+</head>
+<body class="chrome">
+  <main>
+    <h1>clock <small>dev only<span id="back"> · <a href="./index.html">back to the game</a></span></small></h1>
+    <p>the test dial for the sun and moon math (clock.js drawDial): a 24-hour face, not the game's dial (that one is the 12-hour minute-dot horizon). no gameplay limits. drag the sun to set the day; scrub the hour. below the horizon the sun is eclipsed and the dial goes to night, where the 12 skill CONSTELLATIONS ride the wheel — hit “play the year” (keep the hour near midnight) to watch it rotate + the moon wash them in and out.</p>
+    <div class="clockdemo">
+      <canvas id="clockcanvas" width="640" height="640"></canvas>
+      <div class="clockctrl">
+        <label>day <span id="clockdayv">1</span><input id="clockday" type="range" min="1" max="360" value="1" /></label>
+        <label>hour <span id="clockhourv">00:00</span><input id="clockhour" type="range" min="0" max="1439" value="0" /></label>
+        <button id="clockplay" type="button">▶ play the year</button>
+        <div id="clockout" class="clockout"></div>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="./lib/clockview.js"></script>
+</body>
+</html>
